@@ -15,7 +15,7 @@ func ParseLLMJSON[T any](raw string) (*T, error) {
 
 	var lastErr error
 	for _, c := range candidates {
-		if v, err := jsonx.To[T](c); err == nil {
+		if v, err := jsonx.ToByStr[T](c); err == nil {
 			return v, nil
 		} else {
 			lastErr = err

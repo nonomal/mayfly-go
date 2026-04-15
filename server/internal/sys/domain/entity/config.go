@@ -41,7 +41,7 @@ func (c *Config) GetJsonM() collx.M {
 	if c.Id == 0 || c.Value == "" {
 		return collx.M{}
 	}
-	res, _ := jsonx.ToMap(c.Value)
+	res, _ := jsonx.ToMapByStr(c.Value)
 	return res
 }
 

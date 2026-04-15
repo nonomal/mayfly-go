@@ -4,7 +4,7 @@ import { RequestOptions, useApiFetch } from '@/hooks/useRequest';
 /**
  * 可用于各模块定义各自api请求
  */
-class Api {
+class Api<T = any> {
     /**
      * 请求url
      */
@@ -57,17 +57,17 @@ class Api {
      * fetch 请求对应的该api
      * @param {Object} param 请求该api的参数
      */
-    async request(param: any = null, options: any = {}): Promise<any> {
+    async request(param: any = null, options: any = {}): Promise<T> {
         const { execute, data } = this.useApi(param, options);
         const res = await execute();
-        return data.value || res;
+        return (data.value as T) || (res as T);
     }
 
     /**
      * xhr 请求对应的该api
      * @param {Object} param 请求该api的参数
      */
-    async xhrReq(param: any = null, options: any = {}): Promise<any> {
+    async xhrReq(param: any = null, options: any = {}): Promise<T> {
         if (this.beforeHandler) {
             await this.beforeHandler(param);
         }
@@ -81,15 +81,15 @@ class Api {
      * @param url url
      * @param method 请求方法(get,post,put,delete...)
      */
-    static create(url: string, method: string): Api {
-        return new Api(url, method);
+    static create<T = any>(url: string, method: string): Api<T> {
+        return new Api<T>(url, method);
     }
 
     /**
      * 创建get api
      * @param url url
      */
-    static newGet(url: string): Api {
+    static newGet<T = any>(url: string): Api<T> {
         return Api.create(url, 'get');
     }
 
@@ -97,7 +97,7 @@ class Api {
      * new post api
      * @param url url
      */
-    static newPost(url: string): Api {
+    static newPost<T = any>(url: string): Api<T> {
         return Api.create(url, 'post');
     }
 
@@ -105,7 +105,7 @@ class Api {
      * new put api
      * @param url url
      */
-    static newPut(url: string): Api {
+    static newPut<T = any>(url: string): Api<T> {
         return Api.create(url, 'put');
     }
 
@@ -113,7 +113,7 @@ class Api {
      * new delete api
      * @param url url
      */
-    static newDelete(url: string): Api {
+    static newDelete<T = any>(url: string): Api<T> {
         return Api.create(url, 'delete');
     }
 }

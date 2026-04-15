@@ -22,6 +22,10 @@ func initDB(dbConf DBConf) (*gorm.DB, error) {
 
 func initMysql(dbConf DBConf) (*gorm.DB, error) {
 	logx.Infof("connecting to mysql [%s]", dbConf.Address)
+	if dbConf.Config == "" {
+		dbConf.Config = "charset=utf8&loc=Local&parseTime=true"
+	}
+
 	mysqlConfig := mysql.Config{
 		DSN:                       dbConf.Username + ":" + dbConf.Password + "@tcp(" + dbConf.Address + ")/" + dbConf.Name + "?" + dbConf.Config, // DSN data source name
 		DefaultStringSize:         191,                                                                                                           // string 类型字段的默认长度

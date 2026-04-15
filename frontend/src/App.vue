@@ -1,5 +1,10 @@
 <template>
-    <el-config-provider :size="getGlobalComponentSize" :locale="getGlobalI18n">
+    <el-config-provider
+        :size="getGlobalComponentSize"
+        :locale="getGlobalI18n"
+        :button="{ autoInsertSpace: false, round: true }"
+        :dialog="{ alignCenter: true, transition: 'dialog-bounce' }"
+    >
         <el-watermark
             :zIndex="100000"
             :width="210"

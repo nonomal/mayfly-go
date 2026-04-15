@@ -151,7 +151,7 @@ func (m *syslogAppImpl) AppendLog(logId uint64, appendLog *AppendLogReq) {
 	syslog.Resp = fmt.Sprintf("%s\n%s", syslog.Resp, appendLogMsg)
 	syslog.Type = appendLog.Type
 	if len(appendLog.Extra) > 0 {
-		existExtra, _ := jsonx.ToMap(syslog.Extra)
+		existExtra, _ := jsonx.ToMapByStr(syslog.Extra)
 		syslog.Extra = jsonx.ToStr(collx.MapMerge(existExtra, appendLog.Extra))
 	}
 
@@ -169,7 +169,7 @@ func (m *syslogAppImpl) SetExtra(logId uint64, key string, val any) {
 		syslog = sl
 	}
 
-	extraMap, _ := jsonx.ToMap(syslog.Extra)
+	extraMap, _ := jsonx.ToMapByStr(syslog.Extra)
 	if extraMap == nil {
 		extraMap = make(map[string]any)
 	}

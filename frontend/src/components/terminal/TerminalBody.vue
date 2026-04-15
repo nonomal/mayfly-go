@@ -18,8 +18,8 @@ import { useThemeConfig } from '@/store/themeConfig';
 import { ref, nextTick, reactive, onMounted, onBeforeUnmount, watch } from 'vue';
 import TerminalSearch from './TerminalSearch.vue';
 import { TerminalStatus } from './common';
-import { useDebounceFn, useEventListener, useIntervalFn } from '@vueuse/core';
-import themes from './themes';
+import { useDebounceFn, useEventListener } from '@vueuse/core';
+import themes from './themes.js';
 import { TrzszFilter } from 'trzsz';
 import { useI18n } from 'vue-i18n';
 import { createWebSocket } from '@/common/request';
@@ -54,6 +54,7 @@ const { themeConfig } = storeToRefs(useThemeConfig());
 // 终端实例
 let term: Terminal;
 let socket: WebSocket;
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
 const state = reactive({
     // 插件
@@ -154,7 +155,7 @@ const initSocket = async () => {
     }
 
     // 注册心跳
-    useIntervalFn(sendPing, 15000);
+    startHeartbeat();
 
     state.status = TerminalStatus.Connected;
 
@@ -170,6 +171,22 @@ const initSocket = async () => {
         console.log('terminal socket close...', e.reason);
         state.status = TerminalStatus.Disconnected;
     };
+};
+
+const startHeartbeat = () => {
+    stopHeartbeat();
+    console.log('terminal start heartbeat');
+    heartbeatTimer = setInterval(() => {
+        sendPing();
+    }, 10000);
+};
+
+const stopHeartbeat = () => {
+    if (heartbeatTimer) {
+        console.log('terminal stop heartbeat');
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+    }
 };
 
 const loadAddon = () => {
@@ -280,6 +297,7 @@ const sendData = (key: any) => {
 };
 
 const closeSocket = () => {
+    stopHeartbeat();
     // 关闭 websocket
     socket && socket.readyState === 1 && socket.close();
 };

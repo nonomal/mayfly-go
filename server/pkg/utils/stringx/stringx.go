@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"text/template"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -45,24 +46,29 @@ func SubString(str string, begin, end int) (substr string) {
 	return string(rs[begin:end])
 }
 
-func Camel2Underline(name string) string {
+// Camel2Snake 将驼峰命名转换为下划线命名
+// 例如: "userName" -> "user_name", "HTTPServer" -> "http_server"
+func Camel2Snake(name string) string {
 	if name == "" {
 		return ""
 	}
 
-	temp := strings.Split(name, "_")
-	var s string
-	for _, v := range temp {
-		vv := []rune(v)
-		if len(vv) > 0 {
-			if bool(vv[0] >= 'a' && vv[0] <= 'z') { //首字母大写
-				vv[0] -= 32
+	var result strings.Builder
+	for i, r := range name {
+		// 如果当前字符是大写字母
+		if unicode.IsUpper(r) {
+			// 如果不是第一个字符，且前一个字符不是下划线，则添加下划线
+			if i > 0 {
+				result.WriteRune('_')
 			}
-			s += string(vv)
+			// 转换为小写
+			result.WriteRune(unicode.ToLower(r))
+		} else {
+			result.WriteRune(r)
 		}
 	}
 
-	return s
+	return result.String()
 }
 
 func UnicodeIndex(str, substr string) int {
@@ -120,7 +126,23 @@ func ReverStrTemplate(temp, str string, res map[string]any) {
 	}
 }
 
-// Truncate 截断字符串并在中间部分显示指定的替换字符串
+// Truncate 截断字符串并在中间部分显示指定的替换字符串。
+// 该函数基于 Unicode 字符（rune）进行计算，支持中文等多字节字符。
+//
+// 参数说明：
+//   - s: 原始字符串
+//   - length: 截断后字符串的总最大长度（包含前缀、替换串和后缀）。
+//     如果原字符串长度小于等于 length，则直接返回原字符串。
+//   - prefixLen: 保留的前缀字符数量。
+//   - replace: 用于替换中间被截断部分的字符串（如 "..."）。
+//
+// 返回：
+//   - 格式化后的字符串。
+//
+// 示例：
+//
+//	Truncate("Hello, World!", 10, 5, "...") -> "Hello...ld!"
+//	Truncate("你好世界", 3, 1, "..") -> "你..界"
 func Truncate(s string, length int, prefixLen int, replace string) string {
 	totalRunes := utf8.RuneCountInString(s)
 

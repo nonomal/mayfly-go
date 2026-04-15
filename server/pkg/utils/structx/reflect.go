@@ -21,3 +21,23 @@ func IsZeroValue(v reflect.Value) bool {
 		return reflect.DeepEqual(v.Interface(), reflect.Zero(v.Type()).Interface())
 	}
 }
+
+// newInstance 创建一个 T 类型的实例
+// 如果 T 是指针类型 (*A)，它返回 new(A) 并转换为 *A
+// 如果 T 是值类型 (A)，它返回 new(A) 的解引用值 A (即零值)，或者根据需求调整
+func NewInstance[T any]() T {
+	var t T
+	typ := reflect.TypeOf(t)
+
+	if typ.Kind() == reflect.Ptr {
+		// T 是 *SomeStruct
+		// 我们需要创建 SomeStruct 的实例，并返回其指针
+		elemType := typ.Elem()
+		v := reflect.New(elemType)
+		return v.Interface().(T)
+	} else {
+		// T 是 SomeStruct
+		// 返回零值结构体，或者返回 &SomeStruct{} (但这会改变类型)
+		return t
+	}
+}

@@ -1,8 +1,9 @@
-package tools
+package dbtool
 
 import (
 	"context"
 
+	"mayfly-go/internal/ai/tools"
 	"mayfly-go/internal/db/application"
 	"mayfly-go/internal/db/dbm/dbi"
 
@@ -27,7 +28,7 @@ func GetQueryData() (tool.InvokableTool, error) {
 		func(ctx context.Context, param *QueryDataParam) (*QueryDataOutput, error) {
 			conn, err := application.GetDbApp().GetDbConn(ctx, param.DbId, param.DbName)
 			if err != nil {
-				return nil, err
+				return nil, tools.NewToolError(err, tools.RecoverRetry)
 			}
 
 			rows := make([]map[string]any, 0)
@@ -39,7 +40,7 @@ func GetQueryData() (tool.InvokableTool, error) {
 				return nil
 			})
 			if err != nil {
-				return nil, err
+				return nil, tools.NewToolError(err, tools.RecoverRetry)
 			}
 
 			output := &QueryDataOutput{Columns: columns, Rows: rows}

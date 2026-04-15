@@ -102,7 +102,7 @@
             </template>
         </el-table-column>
 
-        <el-table-column prop="networks" :label="$t('docker.ip')" :min-width="100" >
+        <el-table-column prop="networks" :label="$t('docker.ip')" :min-width="110">
             <template #default="scope">
                 <el-tag v-for="network in scope.row.networks" :key="network" type="primary">{{ network || '-' }}</el-tag>
             </template>

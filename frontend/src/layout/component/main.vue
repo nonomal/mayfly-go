@@ -46,7 +46,7 @@ watch(
             setTimeout(() => {
                 layoutScrollbarRef.value.update();
             }, 500);
-            layoutScrollbarRef.value.setScrollTop();
+            layoutScrollbarRef.value.setScrollTop(0);
         });
     }
 );

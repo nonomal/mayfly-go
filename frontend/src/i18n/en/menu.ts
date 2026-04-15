@@ -148,5 +148,7 @@ export default {
 
         noPagePermission: 'No Page Permission',
         authcertShowciphertext: 'Show Ciphertext',
+
+        aiAssistant: 'AI Assistant',
     },
 };

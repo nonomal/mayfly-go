@@ -59,10 +59,10 @@
                 </el-form-item>
 
                 <el-form-item v-if="form.mode === 2">
-                    <el-row :gutter="10">
+                    <el-row :gutter="10" class="w-full">
                         <el-col :span="10">
                             <el-form-item prop="targetFileDbType" :label="$t('db.dbFileType')" :required="form.mode === 2">
-                                <el-select v-model="form.targetFileDbType" clearable filterable style="width: 180px">
+                                <el-select v-model="form.targetFileDbType" clearable filterable>
                                     <el-option
                                         v-for="(dbTypeAndDialect, key) in getDbDialectMap()"
                                         :key="key"
@@ -192,8 +192,8 @@ const rules = {
 };
 
 const fileTypeOptions = [
-    { label: '.sql', value: 'sql' },
     { label: '.zip', value: 'zip' },
+    { label: '.sql', value: 'sql' },
 ];
 
 const dbForm: any = ref(null);

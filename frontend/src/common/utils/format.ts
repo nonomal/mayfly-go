@@ -6,7 +6,7 @@ import dayjs from 'dayjs';
  * @param format 格式化格式  默认 YYYY-MM-DD HH:mm:ss
  * @returns 格式化后内容
  */
-export function formatDate(date: any, format: string = 'YYYY-MM-DD HH:mm:ss') {
+export function formatDate(date?: string | number | Date, format: string = 'YYYY-MM-DD HH:mm:ss') {
     if (!date) {
         return '';
     }

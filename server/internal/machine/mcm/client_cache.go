@@ -11,14 +11,13 @@ var (
 )
 
 // 从缓存中获取客户端信息，不存在则回调获取机器信息函数，并新建。
-//  -  机器的授权凭证名
+//   - 机器的授权凭证名
 func GetMachineCli(ctx context.Context, authCertName string, getMachine func(string) (*MachineInfo, error)) (*Cli, error) {
 	pool, err := poolGroup.GetCachePool(authCertName, func() (*Cli, error) {
 		mi, err := getMachine(authCertName)
 		if err != nil {
 			return nil, err
 		}
-		mi.Key = authCertName
 		return mi.Conn(context.Background())
 	})
 

@@ -379,7 +379,6 @@ const onResizeOpPanel = () => {
 const loadTags = async () => {
     const tags = await tagApi.getTagTrees.request({
         type: getResourceTypes().join(','),
-        flatten: '0',
     });
 
     const result: any[] = [];

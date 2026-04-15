@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
+	"mayfly-go/pkg/utils/anyx"
 	"mayfly-go/pkg/utils/collx"
 )
 
@@ -56,12 +57,16 @@ type ExtraData struct {
 }
 
 // SetExtraValue 设置额外信息字段值
-func (m *ExtraData) SetExtraValue(key string, val any) {
+func (m *ExtraData) SetExtraValue(key string, val any) *ExtraData {
+	if anyx.IsBlank(val) {
+		return m
+	}
 	if m.Extra != nil {
 		m.Extra[key] = val
 	} else {
 		m.Extra = collx.M{key: val}
 	}
+	return m
 }
 
 // GetExtraVal 获取额外信息字段值

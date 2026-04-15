@@ -2,6 +2,7 @@ package ioc
 
 import (
 	"mayfly-go/pkg/utils/collx"
+	"mayfly-go/pkg/utils/structx"
 	"reflect"
 )
 
@@ -11,6 +12,11 @@ var DefaultContainer = NewContainer()
 // 注册实例至全局默认ioc容器
 func Register(component any, opts ...ComponentOption) {
 	DefaultContainer.Register(component, opts...)
+}
+
+// RegisterByType 根据组件实例类型注册至全局默认ioc容器，会自动创建实例
+func RegisterByType[T any](opts ...ComponentOption) {
+	DefaultContainer.Register(structx.NewInstance[T](), opts...)
 }
 
 // Get 根据组件实例类型从全局默认ioc容器获取实例
@@ -24,7 +30,6 @@ func GetByName[T any](name string) T {
 	c, _ := DefaultContainer.Get(name)
 	return c.(T)
 }
-
 
 // GetBeansByType 根据组件实例类型从全局默认ioc容器获取实例
 func GetBeansByType[T any]() []T {

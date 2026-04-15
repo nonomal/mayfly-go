@@ -26,6 +26,7 @@ func RunMigrations(db *gorm.DB) error {
 		migrations.Init,
 		migrations.V1_9,
 		migrations.V1_10,
+		migrations.V1_11,
 	)
 
 	if err == nil {

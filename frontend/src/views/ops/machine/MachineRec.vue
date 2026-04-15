@@ -1,6 +1,9 @@
 <template>
     <div id="terminalRecDialog">
         <el-dialog
+            modal-penetrable
+            :modal="false"
+            draggable
             :title="title"
             v-model="dialogVisible"
             :before-close="handleClose"
@@ -24,6 +27,9 @@
         </el-dialog>
 
         <el-dialog
+            modal-penetrable
+            :modal="false"
+            draggable
             :title="title"
             v-model="playerDialogVisible"
             :before-close="handleClosePlayer"
@@ -31,7 +37,7 @@
             :destroy-on-close="true"
             width="70%"
         >
-            <div ref="playerRef" id="rc-player"></div>
+            <div class="max-h-[60vh]" ref="playerRef" id="rc-player"></div>
         </el-dialog>
 
         <el-dialog :title="$t('machine.execCmdRecord')" v-model="execCmdsDialogVisible" :destroy-on-close="true" width="500">
@@ -116,6 +122,7 @@ const playRec = async (rec: any) => {
         if (player) {
             player.dispose();
         }
+
         rec.playRecLoding = true;
         state.playerDialogVisible = true;
         nextTick(() => {

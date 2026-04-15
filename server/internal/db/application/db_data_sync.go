@@ -90,7 +90,7 @@ func (app *dataSyncAppImpl) Save(ctx context.Context, taskEntity *entity.DataSyn
 
 func (app *dataSyncAppImpl) Delete(ctx context.Context, id uint64) error {
 	task, err := app.GetById(id)
-	if err == nil {
+	if err != nil {
 		return errorx.NewBiz("sync task not found")
 	}
 	scheduler.RemoveByKey(task.TaskKey)
@@ -133,7 +133,7 @@ func (app *dataSyncAppImpl) Run(ctx context.Context, id uint64) error {
 			CreateTime: &now,
 			Status:     entity.DataSyncTaskStateFail, // 默认失败
 		}
-		
+
 		defer app.endRunning(task, syncLog)
 		defer gox.Recover(func(err error) {
 			syncLog.ErrText = i18n.T(imsg.DataSyncFailMsg, "msg", err.Error())
@@ -383,7 +383,7 @@ func (app *dataSyncAppImpl) saveLog(log *entity.DataSyncLog) {
 }
 
 func (app *dataSyncAppImpl) InitCronJob() {
-	ctx := contextx.NewTraceId()
+	ctx := contextx.WithTraceId(context.Background())
 
 	defer func() {
 		if err := recover(); err != nil {

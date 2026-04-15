@@ -1,6 +1,6 @@
 Related configuration files: 
   backend:
-    config.yml: Server port, mysql, aeskey(16, 24, 32 chars), jwt-key and other information can be configured here.
+    config.yml: Server port, db, aeskey(16, 24, 32 chars), jwt-key and other information can be configured here.
     It is recommended to replace aes.key(resource password encryption such as machine, database, redis password) and jwT.key (jwt secret key) with a random string.
 
 

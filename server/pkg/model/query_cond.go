@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"mayfly-go/pkg/consts"
 	"mayfly-go/pkg/utils/anyx"
+	"mayfly-go/pkg/utils/stringx"
 )
 
 type QueryCond struct {
@@ -134,7 +135,7 @@ func (q *QueryCond) Cond(cond, column string, val any, skipBlank bool) *QueryCon
 	if skipBlank && anyx.IsBlank(val) {
 		return q
 	}
-	return q.And(fmt.Sprintf("%s %s ?", column, cond), val)
+	return q.And(fmt.Sprintf("%s %s ?", stringx.Camel2Snake(column), cond), val)
 }
 
 func (q *QueryCond) GetWheres() map[string][]any {

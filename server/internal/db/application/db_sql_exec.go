@@ -298,7 +298,7 @@ func (d *dbSqlExecAppImpl) FlowBizHandle(ctx context.Context, bizHandleParam *fl
 		return nil, nil
 	}
 
-	execSqlBizForm, err := jsonx.To[FlowDbExecSqlBizForm](procinst.BizForm)
+	execSqlBizForm, err := jsonx.ToByStr[FlowDbExecSqlBizForm](procinst.BizForm)
 	if err != nil {
 		return nil, errorx.NewBizf("failed to parse the business form information: %s", err.Error())
 	}

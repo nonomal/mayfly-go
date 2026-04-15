@@ -13,11 +13,12 @@ import (
 type M map[string]any
 
 // Set 设置key对应的值
-func (m *M) Set(key string, val any) {
+func (m *M) Set(key string, val any) *M {
 	if *m == nil {
 		*m = M{}
 	}
 	(*m)[key] = val
+	return m
 }
 
 // GetStr 获取key对应的string类型值

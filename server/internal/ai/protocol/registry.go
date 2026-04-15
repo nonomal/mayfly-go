@@ -2,6 +2,8 @@ package protocol
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"mayfly-go/internal/ai/config"
@@ -59,12 +61,13 @@ func GetChatModel(ctx context.Context, modelConfig *config.ModelConfig) (model.T
 
 // generateCacheKey 生成基于 modelConfig 关键字段的缓存键
 func generateCacheKey(config *config.ModelConfig) string {
-	return fmt.Sprintf("%s_%s_%s_%d_%f",
-		config.Model,
-
-		config.BaseUrl,
-		config.ApiKey,
-		config.MaxTokens,
-		config.Temperature,
-	)
+	// 序列化为 JSON 确保所有字段都被包含，且顺序一致
+	data, err := json.Marshal(config)
+	if err != nil {
+		// 出错时 fallback 到简单 ID
+		return config.Model
+	}
+	// 使用 MD5 缩短 Key 长度，便于存储和比较
+	hash := md5.Sum(data)
+	return fmt.Sprintf("%x", hash)
 }

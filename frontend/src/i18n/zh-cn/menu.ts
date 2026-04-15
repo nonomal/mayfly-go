@@ -148,5 +148,7 @@ export default {
 
         noPagePermission: '无页面权限',
         authcertShowciphertext: '授权凭证密文查看',
+
+        aiAssistant: 'AI助手',
     },
 };

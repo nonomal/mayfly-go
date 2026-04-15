@@ -78,7 +78,7 @@ func (m *MsgTmpl) SendMsg(rc *req.Ctx) {
 
 	rc.ReqParam = form
 
-	params, err := jsonx.ToMap(form.Parmas)
+	params, err := jsonx.ToMapByStr(form.Parmas)
 	biz.ErrIsNil(err)
 	biz.ErrIsNil(m.msgTmplApp.Send(rc.MetaCtx, code, params, form.ReceiverIds...))
 }

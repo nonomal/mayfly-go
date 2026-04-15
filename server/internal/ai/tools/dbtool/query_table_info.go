@@ -1,8 +1,9 @@
-package tools
+package dbtool
 
 import (
 	"context"
 
+	"mayfly-go/internal/ai/tools"
 	"mayfly-go/internal/db/application"
 
 	"github.com/cloudwego/eino/components/tool"
@@ -25,12 +26,12 @@ func GetQueryTableInfo() (tool.InvokableTool, error) {
 		func(ctx context.Context, param *QueryTableInfoParam) (*QueryTableInfoOutput, error) {
 			conn, err := application.GetDbApp().GetDbConn(ctx, param.DbId, param.DbName)
 			if err != nil {
-				return nil, err
+				return nil, tools.NewToolError(err, tools.RecoverRetry)
 			}
 
 			ddl, err := conn.GetMetadata().GetTableDDL(param.TableName, false)
 			if err != nil {
-				return nil, err
+				return nil, tools.NewToolError(err, tools.RecoverRetry)
 			}
 			output := &QueryTableInfoOutput{DDL: ddl}
 			return output, nil

@@ -40,12 +40,24 @@ func GetSshTunnelMachine(ctx context.Context, machineId int, getMachine func(uin
 		if mi == nil {
 			return nil, errors.New("error get machine info")
 		}
-		sshClient, err := GetSshClient(mi, nil)
-		if err != nil {
-			return nil, err
-		}
-		stm := &SshTunnelMachine{SshClient: sshClient, machineId: machineId, tunnels: map[string]*Tunnel{}, mi: mi}
 		logx.Infof("ssh tunnel machine - connect to machine for the first time - [%d][%s:%d]", machineId, mi.Ip, mi.Port)
+
+		clients := []*ssh.Client{}
+		var prev *ssh.Client
+		for {
+			client, err := mi.GetSshClient(prev)
+			if err != nil {
+				return nil, err
+			}
+			clients = append(clients, client)
+			prev = client
+			mi = mi.SshTunnelMachine
+			if mi == nil {
+				break
+			}
+		}
+
+		stm := &SshTunnelMachine{sshClients: clients, machineId: machineId, tunnels: map[string]*Tunnel{}}
 
 		return stm, err
 	}, pool.WithIdleTimeout[*SshTunnelMachine](0), pool.WithHealthCheckInterval[*SshTunnelMachine](1*time.Minute))
@@ -90,22 +102,22 @@ func CloseSshTunnel(sshTunnelAble SshTunnelAble) {
 
 // ssh隧道机器
 type SshTunnelMachine struct {
-	mi        *MachineInfo
-	machineId int // 隧道机器id
-	SshClient *ssh.Client
-	mutex     sync.Mutex
-	tunnels   map[string]*Tunnel // 隧道id -> 隧道
+	machineId  int                // 隧道机器id
+	sshClients []*ssh.Client      // ssh客户端，可能跳转多个
+	tunnels    map[string]*Tunnel // 隧道id -> 隧道
+
+	mutex sync.RWMutex
 }
 
 /******************* pool.Conn impl *******************/
 
 func (stm *SshTunnelMachine) Ping() error {
-	_, _, err := stm.SshClient.SendRequest(
-        "keepalive@openssh.com",
-        true,
-        nil,
-    )
-    return err
+	_, _, err := stm.GetClient().SendRequest(
+		"keepalive@openssh.com",
+		true,
+		nil,
+	)
+	return err
 }
 
 // Close 关闭ssh隧道机器及其所有隧道
@@ -120,15 +132,24 @@ func (stm *SshTunnelMachine) Close() error {
 		}
 	}
 
-	if stm.SshClient != nil {
+	if len(stm.sshClients) > 0 {
 		logx.Infof("ssh tunnel machine [%d] is not in use, close tunnel...", stm.machineId)
-		err := stm.SshClient.Close()
-		if err != nil {
-			logx.Errorf("error in closing ssh tunnel machine [%d]: %s", stm.machineId, err.Error())
+		for _, sshClient := range stm.sshClients {
+			if err := sshClient.Close(); err != nil {
+				logx.Errorf("ssh tunnel machine [%d] close failed: %s", stm.machineId, err.Error())
+			}
 		}
 	}
 
 	return nil
+}
+
+// GetClient 获取ssh客户端
+func (stm *SshTunnelMachine) GetClient() *ssh.Client {
+	if len(stm.sshClients) == 0 {
+		return nil
+	}
+	return stm.sshClients[len(stm.sshClients)-1]
 }
 
 // OpenSshTunnel 打开ssh隧道，返回暴露的ip和端口
@@ -146,7 +167,7 @@ func (stm *SshTunnelMachine) OpenSshTunnel(sshTunnelAble SshTunnelAble) (exposed
 		return tunnel.LocalHost, tunnel.LocalPort, nil
 	}
 
-	tunnel, err = NewTunnel(tunnelKey, stm.SshClient, remoteAddr)
+	tunnel, err = NewTunnel(tunnelKey, stm.GetClient(), remoteAddr)
 	if err != nil {
 		return "", 0, err
 	}
@@ -156,18 +177,18 @@ func (stm *SshTunnelMachine) OpenSshTunnel(sshTunnelAble SshTunnelAble) (exposed
 
 // GetDialConn 获取通过ssh隧道连接远程地址的连接
 func (stm *SshTunnelMachine) GetDialConn(network string, addr string) (net.Conn, error) {
-	return stm.SshClient.Dial(network, addr)
+	return stm.GetClient().Dial(network, addr)
 }
 
 type Tunnel struct {
-	Id        string // 唯一标识
+	Id string // 唯一标识
 
 	LocalHost  string // 本地监听地址
 	LocalPort  int    // 本地端口
 	RemoteAddr string // 远程连接地址
 
 	refCount atomic.Int64 // 引用计数
-	Closed   atomic.Bool // 是否已关闭
+	Closed   atomic.Bool  // 是否已关闭
 
 	localListener net.Listener
 	localConns    collx.SM[net.Conn, any] // net.Conn -> struct{}
@@ -269,8 +290,8 @@ func (t *Tunnel) Release() {
 // Close 关闭隧道
 func (t *Tunnel) Close() {
 	if t.Closed.Swap(true) {
-        return
-    }
+		return
+	}
 	logx.Infof("ssh tunnel [%s] - closed", t.Id)
 
 	_ = t.localListener.Close()

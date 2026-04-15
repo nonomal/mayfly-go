@@ -66,7 +66,7 @@ export async function initRouter() {
 }
 
 // 路由加载前
-router.beforeEach(async (to, from, next) => {
+router.beforeEach(async (to, from) => {
     NProgress.configure({ showSpinner: false });
     NProgress.start();
 
@@ -81,22 +81,22 @@ router.beforeEach(async (to, from, next) => {
     // 判断是访问登陆页，有token就在当前页面，没有token重置路由与用户信息到登陆页
     if (toPath === URL_LOGIN) {
         if (token) {
-            return next(from.fullPath);
+            return from.fullPath;
         }
 
         resetRoute();
         syssocket.destory();
-        return next();
+        return true;
     }
 
     // 判断访问页面是否在路由白名单地址(静态路由)中，如果存在直接放行
     if (ROUTER_WHITE_LIST.includes(toPath)) {
-        return next();
+        return true;
     }
 
     // 判断是否有token，没有重定向到 login 页面
     if (!token) {
-        return next(`${URL_LOGIN}?redirect=${toPath}`);
+        return `${URL_LOGIN}?redirect=${toPath}`;
     }
 
     // 终端不需要连接系统websocket消息
@@ -110,12 +110,12 @@ router.beforeEach(async (to, from, next) => {
             // 可能token过期无法获取菜单权限信息等
             await initRouter();
         } catch (e) {
-            return next(`${URL_401}?redirect=${toPath}`);
+            return `${URL_401}?redirect=${toPath}`;
         }
-        return next({ path: toPath, query: to.query });
+        return { path: toPath, query: to.query };
     }
 
-    next();
+    return true;
 });
 
 // 路由加载后

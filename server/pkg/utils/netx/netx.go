@@ -62,7 +62,7 @@ func Ip2Region(ip string) string {
 	defer searcher.Close()
 
 	// do the search
-	region, err := searcher.SearchByStr(ip)
+	region, err := searcher.Search(ip)
 	if err != nil {
 		logx.Warnf("failed to SearchIP(%s): %s\n", ip, err)
 		return ""

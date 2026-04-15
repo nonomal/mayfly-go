@@ -50,6 +50,10 @@ type DbInfo struct {
 
 var _ (mcm.SshTunnelAble) = (*DbInfo)(nil)
 
+func (di *DbInfo) String() string {
+	return fmt.Sprintf("DbInfo{Id: %d, Name: %s, Type: %s, Host: %s, Port: %d, Database: %s}", di.Id, di.Name, di.Type, di.Host, di.Port, di.Database)
+}
+
 func (di *DbInfo) GetSshTunnelMachineId() int64 {
 	return int64(di.SshTunnelMachineId)
 }

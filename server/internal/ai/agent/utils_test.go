@@ -14,7 +14,7 @@ func TestParseLLMJSON(t *testing.T) {
 		hasError bool
 	}{
 		{
-			name: "Valid JSON Object",
+			name:  "Valid JSON Object",
 			input: "```json\n{\n  \"name\": \"Alice\",\n  \"age\": \"30\"\n}\n```",
 			expected: map[string]any{
 				"name": "Alice",
@@ -23,7 +23,7 @@ func TestParseLLMJSON(t *testing.T) {
 			hasError: false,
 		},
 		{
-			name: "Valid JSON Object",
+			name:  "Valid JSON Object",
 			input: "```\n{\n  \"name\": \"Alice\",\n  \"age\": \"40\"\n}\n```",
 			expected: map[string]any{
 				"name": "Alice",
@@ -32,7 +32,7 @@ func TestParseLLMJSON(t *testing.T) {
 			hasError: false,
 		},
 		{
-			name: "Valid JSON Object",
+			name:  "Valid JSON Object",
 			input: "aaabbbccc```\n{\n  \"name\": \"Alice\",\n  \"age\": \"50\"\n}\n```dddd",
 			expected: map[string]any{
 				"name": "Alice",
@@ -41,7 +41,7 @@ func TestParseLLMJSON(t *testing.T) {
 			hasError: false,
 		},
 		{
-			name: "Valid JSON Array",
+			name:  "Valid JSON Array",
 			input: "```json\n[\n  {\"id\": \"1\", \"value\": \"foo\"},\n  {\"id\": \"2\", \"value\": \"bar\"}\n]\n```",
 			expected: []map[string]any{
 				{"id": "1", "value": "foo"},
@@ -50,7 +50,7 @@ func TestParseLLMJSON(t *testing.T) {
 			hasError: false,
 		},
 		{
-			name: "Valid JSON Array",
+			name:  "Valid JSON Array",
 			input: "aaaa```json\n[\n  {\"id\": \"11\", \"value\": \"foo\"},\n  {\"id\": \"22\", \"value\": \"bar\"}\n]\n```",
 			expected: []map[string]any{
 				{"id": "11", "value": "foo"},

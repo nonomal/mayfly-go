@@ -29,12 +29,13 @@ func GetLoginAccount(ctx context.Context) *model.LoginAccount {
 	return nil
 }
 
-func NewTraceId() context.Context {
-	return WithTraceId(context.Background())
-}
+/**   traceId   **/
 
-// WithTraceId 将traceId放置context中
+// WithTraceId 生成traceId并放置于context中, 如果已存在则不覆盖
 func WithTraceId(ctx context.Context) context.Context {
+	if GetTraceId(ctx) != "" {
+		return ctx
+	}
 	return context.WithValue(ctx, TraceIdKey, stringx.RandByChars(16, stringx.Nums+stringx.LowerChars))
 }
 

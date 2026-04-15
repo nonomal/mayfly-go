@@ -13,6 +13,8 @@ import (
 	"mayfly-go/pkg/utils/collx"
 	"mayfly-go/pkg/utils/jsonx"
 	"time"
+
+	"github.com/cloudwego/eino/schema"
 )
 
 /******************* AI任务节点 *******************/
@@ -68,7 +70,7 @@ func (u *AiTaskNodeBehavior) Execute(ctx *ExecutionCtx) error {
 	flowNode := ctx.GetFlowNode()
 	aitaskNode := ToAiTaskNode(flowNode)
 
-	aiagent, err := agent.GetOpsExpertAgent(ctx, agent.ToolTypeDb)
+	aiagent, err := agent.GetDefaultAgent(ctx)
 	if err != nil {
 		return err
 	}
@@ -95,7 +97,8 @@ func (u *AiTaskNodeBehavior) Execute(ctx *ExecutionCtx) error {
 
 	cancelCtx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Minute)
 	defer cancelFunc()
-	res, err := aiagent.Run(cancelCtx, sysPrompt, jsonx.ToStr(procinst.BizForm))
+
+	res, err := aiagent.Run(cancelCtx, collx.AsArray(schema.SystemMessage(sysPrompt), schema.UserMessage(jsonx.ToStr(procinst.BizForm))))
 	if err != nil {
 		suggestion = fmt.Sprintf("AI agent response failed: %v", err)
 		logx.Error(suggestion)

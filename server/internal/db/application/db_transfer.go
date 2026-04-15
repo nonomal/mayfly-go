@@ -89,7 +89,7 @@ func (app *dbTransferAppImpl) Save(ctx context.Context, taskEntity *entity.DbTra
 	if err != nil {
 		return err
 	}
-	
+
 	app.addCronJob(ctx, taskEntity)
 	return nil
 }
@@ -123,7 +123,7 @@ func (app *dbTransferAppImpl) InitCronJob() {
 	_ = app.transferFileApp.UpdateByCond(context.TODO(), &entity.DbTransferFile{Status: entity.DbTransferFileStatusFail}, &entity.DbTransferFile{Status: entity.DbTransferFileStatusRunning})
 
 	if err := app.CursorByCond(&entity.DbTransferTaskQuery{Status: entity.DbTransferTaskStatusEnable, CronAble: entity.DbTransferTaskCronAbleEnable}, func(dtt *entity.DbTransferTask) error {
-		app.addCronJob(contextx.NewTraceId(), dtt)
+		app.addCronJob(contextx.WithTraceId(context.Background()), dtt)
 		return nil
 	}); err != nil {
 		logx.ErrorTrace("the db data transfer task failed to initialize", err)
@@ -215,7 +215,7 @@ func (app *dbTransferAppImpl) transfer2Db(ctx context.Context, logId uint64, tas
 	for _, tables := range tableGroups {
 		errGroup.Go(func() error {
 			defer gox.Recover()
-			
+
 			if !app.IsRunning(taskId) {
 				return errorx.NewBiz("transfer stopped")
 			}
@@ -224,7 +224,7 @@ func (app *dbTransferAppImpl) transfer2Db(ctx context.Context, logId uint64, tas
 			pr, pw := io.Pipe()
 			defer pr.Close()
 
-			gox.Go(func ()  {
+			gox.Go(func() {
 				defer pw.Close()
 				err := app.dbApp.DumpDb(ctx, &dto.DumpDb{
 					LogId:        logId,
@@ -319,7 +319,7 @@ func (app *dbTransferAppImpl) transfer2File(ctx context.Context, logId uint64, t
 
 	go func() {
 		var err error
-		
+
 		defer closeFunc(&err)
 		defer app.MarkStop(taskId)
 		defer app.logApp.Flush(logId, true)

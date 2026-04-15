@@ -63,7 +63,7 @@ func (c *Container) Inject(obj any) error {
 		return nil
 	}
 
-	ctx := contextx.NewTraceId()
+	ctx := contextx.WithTraceId(context.Background())
 	if err := c.injectWithField(ctx, objValue); err != nil {
 		return err
 	}

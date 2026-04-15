@@ -1,5 +1,10 @@
 <template>
     <div class="layout-navbars-breadcrumb-user" :style="{ flex: layoutUserFlexNum }">
+        <!-- <div class="layout-navbars-breadcrumb-user-icon" @click="onShowAiChatDialog">
+            <SvgIcon name="icon ai/assistant" :title="$t('layout.user.menuSearch')" />
+            <AiChatDialog v-model:visible="state.aiChatDialogVisible" />
+        </div> -->
+
         <div class="layout-navbars-breadcrumb-user-icon">
             <el-switch
                 @change="switchDark()"
@@ -10,20 +15,6 @@
                 class="dark-icon"
             />
         </div>
-        <!-- <el-dropdown :show-timeout="70" :hide-timeout="50" trigger="click" @command="onComponentSizeChange">
-            <div class="layout-navbars-breadcrumb-user-icon">
-                <el-icon title="组件大小">
-                    <plus />
-                </el-icon>
-            </div>
-            <template #dropdown>
-                <el-dropdown-menu>
-                    <el-dropdown-item command="" :disabled="state.disabledSize === ''">默认</el-dropdown-item>
-                    <el-dropdown-item command="large" :disabled="state.disabledSize === 'large'">大型</el-dropdown-item>
-                    <el-dropdown-item command="small" :disabled="state.disabledSize === 'small'">小型</el-dropdown-item>
-                </el-dropdown-menu>
-            </template>
-</el-dropdown> -->
 
         <el-dropdown :show-timeout="70" :hide-timeout="50" trigger="click" @command="onLanguageChange">
             <div class="layout-navbars-breadcrumb-user-icon">
@@ -81,7 +72,7 @@
 </template>
 
 <script setup lang="ts" name="layoutBreadcrumbUser">
-import { ref, computed, reactive, onMounted, watch, useTemplateRef } from 'vue';
+import { ref, computed, reactive, onMounted, watch, useTemplateRef, defineAsyncComponent } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessageBox, ElMessage } from 'element-plus';
 import screenfull from 'screenfull';
@@ -99,6 +90,8 @@ import { useI18n } from 'vue-i18n';
 import { I18nEnum } from '@/common/commonEnum';
 import EnumValue from '@/common/Enum';
 
+// const AiChatDialog = defineAsyncComponent(() => import('@/views/ai/AiChatDialog.vue'));
+
 const router = useRouter();
 const searchRef = ref();
 const userNewsRef = useTemplateRef('userNewsRef');
@@ -107,6 +100,7 @@ const state = reactive({
     isScreenfull: false,
     disabledSize: '',
     unreadMsgCount: 0,
+    aiChatDialogVisible: false,
 });
 const { userInfo } = storeToRefs(useUserInfo());
 const themeConfigStore = useThemeConfig();
@@ -235,6 +229,10 @@ const initComponentSize = () => {
             state.disabledSize = 'large';
             break;
     }
+};
+
+const onShowAiChatDialog = () => {
+    state.aiChatDialogVisible = true;
 };
 
 // 语言切换
