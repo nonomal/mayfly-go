@@ -24,3 +24,5 @@ server/docs/docker-compose
 server/config.yml
 server/ip2region.xdb
 mayfly-go.log
+
+mayfly-go-linux-amd64/
