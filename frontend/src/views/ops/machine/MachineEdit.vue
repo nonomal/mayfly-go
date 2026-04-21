@@ -129,14 +129,13 @@ const defaultForm = {
 const state = reactive({
     sshTunnelMachineList: [] as any,
     form: defaultForm,
-    submitForm: {} as any,
     pwd: '',
 });
 
-const { form, submitForm } = toRefs(state);
+const { form } = toRefs(state);
 
-const { isFetching: testConnBtnLoading, execute: testConnExec } = machineApi.testConn.useApi(submitForm);
-const { isFetching: saveBtnLoading, execute: saveMachineExec } = machineApi.saveMachine.useApi(submitForm);
+const { isFetching: testConnBtnLoading, execute: testConnExec } = machineApi.testConn.useApi();
+const { isFetching: saveBtnLoading, execute: saveMachineExec } = machineApi.saveMachine.useApi();
 
 watchEffect(() => {
     if (!dialogVisible.value) {
@@ -157,9 +156,9 @@ watchEffect(() => {
 const onTestConn = async (authCert: any) => {
     await useI18nFormValidate(machineFormRef);
 
-    state.submitForm = getReqForm();
-    state.submitForm.authCerts = [authCert];
-    await testConnExec();
+    const submitForm = getReqForm();
+    submitForm.authCerts = [authCert];
+    await testConnExec(submitForm);
     ElMessage.success(t('machine.connSuccess'));
 };
 
@@ -171,8 +170,8 @@ const onConfirm = async () => {
         return false;
     }
 
-    state.submitForm = getReqForm();
-    await saveMachineExec();
+    const submitForm = getReqForm();
+    await saveMachineExec(submitForm);
     useI18nSaveSuccessMsg();
     emit('val-change', submitForm);
     onCancel();

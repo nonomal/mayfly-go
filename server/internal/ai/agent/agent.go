@@ -9,8 +9,6 @@ import (
 	"mayfly-go/internal/ai/tools"
 	"mayfly-go/pkg/contextx"
 	"mayfly-go/pkg/logx"
-	"mayfly-go/pkg/utils/collx"
-	"mayfly-go/pkg/utils/stringx"
 	"slices"
 
 	"github.com/cloudwego/eino/adk"
@@ -122,115 +120,88 @@ type Agent struct {
 }
 
 // Run 运行agent
-func (a *Agent) Run(ctx context.Context, messages []adk.Message, runOpts ...runOption) (string, error) {
+func (a *Agent) Run(ctx context.Context, messages []adk.Message, runOpts ...RunOption) (string, error) {
 	ctx = contextx.WithTraceId(ctx)
 
-	runOptions := &runOptions{}
-	for _, opt := range runOpts {
-		opt(runOptions)
-	}
+	runOptions := newRunOptions(ctx, runOpts...)
 	if runOptions.sessionKey != "" {
 		ctx = session.WithSessionKey(ctx, runOptions.sessionKey)
 	}
 
+	checkPointStore := GetDefaultCheckPointStore()
 	runner := adk.NewRunner(ctx, adk.RunnerConfig{
 		EnableStreaming: true,
 		Agent:           a.agent,
-		CheckPointStore: NewInMemoryStore(),
+		CheckPointStore: checkPointStore,
 	})
-
-	contextMessages, err := a.contextManager.BuildMessages(ctx)
-	if err != nil {
-		logx.InfoContext(ctx, err.Error())
-		contextMessages = []adk.Message{}
-	}
 
 	adkRunOptions := runOptions.adkRunOptions
 	adkRunOptions = append(adkRunOptions,
 		adk.WithCallbacks(logCallback),
-		adk.WithCheckPointID(session.GetSessionKey(ctx)))
-	iter := runner.Run(ctx, slices.Concat(contextMessages, messages), adkRunOptions...)
+		adk.WithCheckPointID(runOptions.turnId))
+
 	var outputMessages []adk.Message
-	messageId := stringx.RandUUID()
-	for {
-		event, ok := iter.Next()
-		if !ok {
-			break
-		}
+	var events *adk.AsyncIterator[*adk.AgentEvent]
+	var err error
 
-		err = event.Err
-		if err != nil {
-			break
-		}
+	if runOptions.resumeParams != nil {
+		resumePrams := runOptions.resumeParams
+		targets := map[string]any{}
+		for _, v := range resumePrams {
+			// key -> interruptId  value -> InterruptResume
+			targets[v.InterruptId] = v
 
-		var msg adk.Message
-		sr := event.Output.MessageOutput.MessageStream
-		if sr != nil {
-			// 使用匿名函数或直接在处理完后关闭
-			func() {
-				defer sr.Close()
-				var chunkMessages []adk.Message
-				for {
-					chunk, err := sr.Recv()
-					if errors.Is(err, io.EOF) {
-						break
-					}
-					if err != nil {
-						logx.Warnf("stream recv error: %v", err)
-						break
-					}
-					chunkMessages = append(chunkMessages, chunk)
-					if err := runOptions.CallOnChunk(ctx, chunk); err != nil {
-						logx.Warnf("onStreaming callback error: %v", err)
-						break
-					}
-				}
-				if len(chunkMessages) > 0 {
-					if message, err := schema.ConcatMessages(chunkMessages); err != nil {
-						logx.Warnf("concat streamed messages error: %v", err)
-					} else {
-						msg = message
-					}
-				}
-			}()
-		} else {
-			msg = event.Output.MessageOutput.Message
-		}
-		if msg == nil {
-			break
-		}
-
-		if msg.ToolCallID != "" {
-			if _, ok := adk.GetSessionValue(ctx, msg.ToolCallID); ok {
-				m := collx.M(msg.Extra)
-				msg.Extra = *m.Set("toolStatus", "error")
+			// 中断恢复消息
+			internalResumeMessage := &schema.Message{
+				Role: RoleInternal,
 			}
-		}
-		SetMessageId(msg, messageId)
-		outputMessages = append(outputMessages, msg)
-		if err := runOptions.CallOnEvent(ctx, event, msg); err != nil {
-			logx.Warnf("onEvent callback error: %v", err)
-			break
+			extra := NewInternalMessageExtra(InternalMessageTypeResume, v)
+			internalResumeMessage.Extra = extra
+			SetTurnId(internalResumeMessage, runOptions.turnId)
+			SetActionId(internalResumeMessage, v.InterruptId)
+
+			outputMessages = append(outputMessages, internalResumeMessage)
 		}
 
-		LogEventAndMsg(ctx, event, msg)
+		events, err = runner.ResumeWithParams(ctx, runOptions.turnId, &adk.ResumeParams{
+			Targets: targets,
+		}, adkRunOptions...)
+		if err != nil {
+			return "", err
+		}
+
+		// 事件处理
+		for _, msg := range outputMessages {
+			runOptions.CallOnEvent(ctx, nil, msg)
+		}
+		checkPointStore.Delete(ctx, runOptions.turnId)
+	} else {
+		contextMessages, err := a.contextManager.BuildMessages(ctx)
+		if err != nil {
+			logx.ErrorContext(ctx, err.Error())
+			contextMessages = []adk.Message{}
+		}
+		events = runner.Run(ctx, slices.Concat(contextMessages, messages), adkRunOptions...)
 	}
 
+	eventOutputMessages, err := a.handleEvents(ctx, events, runOptions)
 	if err != nil {
 		if toolErr, ok := errors.AsType[*tools.ToolError](err); ok {
 			// 工具调用失败，并且没有重试，则记录对应错误消息
 			toolErrMsg := &schema.Message{
-				Role:       schema.Tool,
-				Content:    tools.GetToolErrorMsg(err),
-				ToolCallID: toolErr.ToolCallId,
-				ToolName:   toolErr.ToolName,
+				Role:     schema.Tool,
+				Content:  tools.GetToolErrorMsg(err),
+				ToolName: toolErr.ToolName,
 			}
+			SetActionId(toolErrMsg, toolErr.ToolCallId)
+			SetTurnId(toolErrMsg, runOptions.turnId)
+			SetToolStatus(toolErrMsg, tools.ToolStatusError)
+
 			errMsg := &schema.Message{
 				Role:    schema.Assistant,
 				Content: err.Error(),
 			}
-			SetMessageId(toolErrMsg, messageId)
-			SetMessageId(errMsg, messageId)
+			SetTurnId(errMsg, runOptions.turnId)
 			runOptions.CallOnEvent(ctx, nil, toolErrMsg)
 
 			outputMessages = append(outputMessages, toolErrMsg, errMsg)
@@ -238,6 +209,8 @@ func (a *Agent) Run(ctx context.Context, messages []adk.Message, runOpts ...runO
 			logx.ErrorContext(ctx, err.Error())
 			return "", err
 		}
+	} else {
+		outputMessages = append(outputMessages, eventOutputMessages...)
 	}
 
 	if len(outputMessages) > 0 {
@@ -249,4 +222,146 @@ func (a *Agent) Run(ctx context.Context, messages []adk.Message, runOpts ...runO
 	}
 
 	return "finished without output message", err
+}
+
+// handleEvents 处理事件
+func (a *Agent) handleEvents(ctx context.Context, events *adk.AsyncIterator[*adk.AgentEvent], runOptions *runOptions) ([]adk.Message, error) {
+	var outputMessages []adk.Message
+	var err error
+
+	for {
+		event, ok := events.Next()
+		if !ok {
+			break
+		}
+
+		err = event.Err
+		if err != nil {
+			break
+		}
+
+		var msg adk.Message
+
+		sr := getMessageStream(event)
+		if sr != nil {
+			// 使用匿名函数或直接在处理完后关闭
+			func() {
+				defer sr.Close()
+				var chunkMessages []adk.Message
+				for {
+					chunk, err := sr.Recv()
+					if errors.Is(err, io.EOF) {
+						break
+					}
+					if err != nil {
+						logx.WarnfContext(ctx, "stream recv error: %v", err)
+						break
+					}
+					chunkMessages = append(chunkMessages, chunk)
+					if err := runOptions.CallOnChunk(ctx, chunk); err != nil {
+						logx.WarnfContext(ctx, "onStreaming callback error: %v", err)
+						break
+					}
+				}
+				if len(chunkMessages) > 0 {
+					// 拼接chunk为完整的消息
+					if message, err := schema.ConcatMessages(chunkMessages); err != nil {
+						logx.WarnfContext(ctx, "concat streamed messages error: %v", err)
+					} else {
+						msg = message
+					}
+				}
+			}()
+		} else {
+			msg = getMessage(event)
+		}
+
+		if event.Action != nil && event.Action.Interrupted != nil {
+			interruptInfo := event.Action.Interrupted
+			if interruptMessages, err := a.handleInterrupt(interruptInfo); err != nil {
+				logx.ErrorfContext(ctx, "interrupt error: %v", err)
+				continue
+			} else {
+				outputMessages = append(outputMessages, interruptMessages...)
+				for _, msg := range interruptMessages {
+					SetTurnId(msg, runOptions.turnId)
+					if err := runOptions.CallOnEvent(ctx, event, msg); err != nil {
+						logx.WarnfContext(ctx, "onEvent callback error: %v", err)
+						break
+					}
+				}
+			}
+		}
+
+		if msg == nil {
+			continue
+		}
+		if msg.Role == schema.Tool {
+			SetActionId(msg, msg.ToolCallID)
+		}
+		SetTurnId(msg, runOptions.turnId)
+
+		outputMessages = append(outputMessages, msg)
+		if err := runOptions.CallOnEvent(ctx, event, msg); err != nil {
+			logx.WarnfContext(ctx, "onEvent callback error: %v", err)
+			return outputMessages, err
+		}
+
+		LogEventAndMsg(ctx, event, msg)
+	}
+
+	return outputMessages, err
+}
+
+// handleIntererrupt 处理中断
+func (a *Agent) handleInterrupt(interruptInfo *adk.InterruptInfo) ([]adk.Message, error) {
+	outputMessages := []adk.Message{}
+	for _, ic := range interruptInfo.InterruptContexts {
+		if !ic.IsRootCause {
+			continue
+		}
+
+		info, ok := ic.Info.(tools.InterruptMetadata)
+		if !ok {
+			continue
+		}
+		extra := NewInternalMessageExtra(InternalMessageTypeInterrupt, info)
+		extra.Set("toolCallId", info.GetToolCallId())
+		internalMsg := &schema.Message{
+			Role:       RoleInternal,
+			Content:    info.GetDescription(),
+			ToolName:   info.GetToolInfo().Name,
+			ToolCallID: info.GetToolCallId(),
+			Extra:      extra,
+		}
+		SetActionId(internalMsg, ic.ID)
+		SetToolStatus(internalMsg, tools.ToolStatusInterrupted)
+		outputMessages = append(outputMessages, internalMsg)
+	}
+
+	return outputMessages, nil
+}
+
+func getMessageStream(event *adk.AgentEvent) adk.MessageStream {
+	eo := event.Output
+	if eo == nil {
+		return nil
+	}
+	mo := eo.MessageOutput
+	if mo == nil {
+		return nil
+	}
+	return mo.MessageStream
+}
+
+func getMessage(event *adk.AgentEvent) *schema.Message {
+	eo := event.Output
+	if eo == nil {
+		return nil
+	}
+	mo := eo.MessageOutput
+	if mo == nil {
+		return nil
+	}
+	return mo.Message
 }

@@ -50,35 +50,37 @@ interface EsReq {
 
 export interface RequestOptions extends RequestInit, EsReq {}
 
-export function useApiFetch<T>(api: Api, params: any = null, reqOptions?: RequestOptions) {
-    const uaf = useCustomFetch<T>(api.url, {
+export function useApiFetch<T, P = any>(api: Api, params?: P, reqOptions?: RequestOptions) {
+    const currentParam = ref(params);
+
+    const uaf: any = useCustomFetch<T>(api.url, {
         async beforeFetch({ url, options }) {
             options.method = api.method;
-            if (!params) {
+            let paramValue = unref(currentParam.value);
+
+            if (!paramValue) {
                 return;
             }
-
-            let paramsValue = unref(params);
 
             let apiUrl = url;
             // 简单判断该url是否是restful风格
             if (apiUrl.indexOf('{') != -1) {
-                apiUrl = templateResolve(apiUrl, paramsValue);
+                apiUrl = templateResolve(apiUrl, paramValue);
             }
 
             if (api.beforeHandler) {
-                paramsValue = await api.beforeHandler(paramsValue);
+                paramValue = await api.beforeHandler(paramValue);
             }
 
-            if (paramsValue) {
+            if (paramValue) {
                 const method = options.method?.toLowerCase();
                 // post和put使用json格式传参
                 if (method === 'post' || method === 'put') {
-                    options.body = JSON.stringify(paramsValue);
+                    options.body = JSON.stringify(paramValue);
                 } else {
                     const searchParam = new URLSearchParams();
-                    Object.keys(paramsValue).forEach((key) => {
-                        const val = paramsValue[key];
+                    Object.keys(paramValue).forEach((key) => {
+                        const val = paramValue[key];
                         if (val) {
                             searchParam.append(key, val);
                         }
@@ -102,12 +104,16 @@ export function useApiFetch<T>(api: Api, params: any = null, reqOptions?: Reques
             }
             return ctx;
         },
-    }) as any;
+    });
 
     // 统一处理后的返回结果，如果直接使用uaf.data，则数据会出现由{code: x, data: {}} -> data 的变化导致某些结果绑定报错
     const data = ref<T | null>(null);
     return {
-        execute: async function () {
+        execute: async function (executeParam?: P) {
+            if (executeParam !== undefined) {
+                currentParam.value = executeParam;
+            }
+
             await execCustomFetch(uaf, reqOptions);
             data.value = uaf.data.value;
         },

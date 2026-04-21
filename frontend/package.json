@@ -11,8 +11,8 @@
     },
     "dependencies": {
         "@element-plus/icons-vue": "^2.3.2",
-        "@logicflow/core": "^2.1.7",
-        "@logicflow/extension": "^2.1.9",
+        "@logicflow/core": "^2.2.1",
+        "@logicflow/extension": "^2.2.1",
         "@vueuse/core": "^14.2.1",
         "@xterm/addon-fit": "^0.11.0",
         "@xterm/addon-search": "^0.16.0",
@@ -52,7 +52,7 @@
         "@types/sortablejs": "^1.15.8",
         "@typescript-eslint/eslint-plugin": "^8.35.0",
         "@typescript-eslint/parser": "^8.35.0",
-        "@vitejs/plugin-vue": "^6.0.5",
+        "@vitejs/plugin-vue": "^6.0.6",
         "@vue/compiler-sfc": "^3.5.32",
         "autoprefixer": "^10.4.21",
         "code-inspector-plugin": "^1.4.2",
@@ -62,7 +62,7 @@
         "prettier": "^3.8.1",
         "sass": "^1.99.0",
         "tailwindcss": "^4.2.2",
-        "typescript": "^6.0.2",
+        "typescript": "^6.0.3",
         "vite": "^8.0.8",
         "vite-plugin-progress": "0.0.7",
         "vue-eslint-parser": "^10.4.0"

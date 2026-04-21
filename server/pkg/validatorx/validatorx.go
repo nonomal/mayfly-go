@@ -1,10 +1,12 @@
 package validatorx
 
 import (
+	"fmt"
 	"mayfly-go/pkg/utils/stringx"
 	"mayfly-go/pkg/utils/structx"
 	"reflect"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/locales/zh"
@@ -17,17 +19,23 @@ const CustomMsgTagName = "msg"
 
 var (
 	trans ut.Translator
+	// 使用 sync.Once 确保注册只执行一次
+	registerOnce sync.Once
+	// 全局 validator 实例
+	validate *validator.Validate
 )
 
 func Init() {
 	// 获取gin的校验器
-	validate, ok := binding.Validator.Engine().(*validator.Validate)
+	ginValidate, ok := binding.Validator.Engine().(*validator.Validate)
 	if !ok {
-		return
+		ginValidate = validator.New()
 	}
 
+	validate = ginValidate
+
 	// 修改返回字段key的格式
-	validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
+	ginValidate.RegisterTagNameFunc(func(fld reflect.StructField) string {
 		// 如果存在校验错误提示消息，则使用字段名，后续需要通过该字段名获取相应错误消息
 		if _, ok := fld.Tag.Lookup(CustomMsgTagName); ok {
 			return fld.Name
@@ -46,10 +54,10 @@ func Init() {
 	trans, _ = uni.GetTranslator("zh")
 
 	// 注册翻译器
-	zh_trans.RegisterDefaultTranslations(validate, trans)
+	zh_trans.RegisterDefaultTranslations(ginValidate, trans)
 
 	// 注册自定义校验器
-	validate.RegisterValidation(CustomPatternTagName, patternValidFunc)
+	ginValidate.RegisterValidation(CustomPatternTagName, patternValidFunc)
 }
 
 // Translate 翻译错误信息
@@ -84,6 +92,26 @@ func Translate(data any, err error) map[string][]string {
 	return result
 }
 
+// Validate 校验结构体
+// 如果校验失败，返回格式化的错误信息字符串
+func Validate(s any) error {
+	if validate == nil {
+		return fmt.Errorf("validator not initialized")
+	}
+
+	err := validate.Struct(s)
+	if err != nil {
+		// 将 validator 的错误转换为更易读的格式
+		var errs []string
+		for _, e := range err.(validator.ValidationErrors) {
+			// 默认错误格式
+			errs = append(errs, fmt.Sprintf("%s: %s", e.Field(), e.Error()))
+		}
+		return fmt.Errorf("%s", strings.Join(errs, "; "))
+	}
+	return nil
+}
+
 // Translate 翻译错误信息为字符串
 func Translate2Str(data any, err error) string {
 	res := Translate(data, err)
@@ -96,8 +124,8 @@ func Translate2Str(data any, err error) string {
 
 // 获取自定义的错误提示消息
 //
-//  -  validTag 校验标签，如required等
-//  -  customMsg 自定义错误消息
+//   - validTag 校验标签，如required等
+//   - customMsg 自定义错误消息
 func getCustomErrMsg(validTag, customMsg string) string {
 	// 解析 msg:"required=用户名不能为空,min=用户名长度不能小于8位"
 	msgs := strings.Split(customMsg, ",")

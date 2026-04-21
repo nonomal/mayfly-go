@@ -20,7 +20,7 @@
                     <el-input v-model.trim="form.version" auto-complete="off" disabled></el-input>
                 </el-form-item>
                 <!-- 增加协议下拉框 http和https，默认http-->
-                 <el-form-item prop="protocol" :label="t('es.protocol')">
+                <el-form-item prop="protocol" :label="t('es.protocol')">
                     <el-select v-model="form.protocol" placeholder="http">
                         <el-option label="http" value="http"></el-option>
                         <el-option label="https" value="https"></el-option>
@@ -124,13 +124,12 @@ const DefaultForm = {
 
 const state = reactive({
     form: DefaultForm,
-    submitForm: {} as any,
 });
 
-const { form, submitForm } = toRefs(state);
+const { form } = toRefs(state);
 
-const { isFetching: saveBtnLoading, execute: saveInstanceExec, data: saveInstanceRes } = esApi.saveInstance.useApi(submitForm);
-const { isFetching: testConnBtnLoading, execute: testConnExec, data: testConnRes } = esApi.testConn.useApi<any>(submitForm);
+const { isFetching: saveBtnLoading, execute: saveInstanceExec, data: saveInstanceRes } = esApi.saveInstance.useApi();
+const { isFetching: testConnBtnLoading, execute: testConnExec, data: testConnRes } = esApi.testConn.useApi();
 
 watchEffect(() => {
     if (!dialogVisible.value) {
@@ -146,7 +145,7 @@ watchEffect(() => {
     }
 });
 
-const getReqForm = async () => {
+const getReqForm = () => {
     const reqForm: any = { ...state.form };
     reqForm.selectAuthCert = null;
     reqForm.tags = null;
@@ -158,11 +157,11 @@ const getReqForm = async () => {
 
 const onTestConn = async (authCert: any) => {
     await useI18nFormValidate(dbFormRef);
-    state.submitForm = await getReqForm();
+    const submitForm = getReqForm();
     if (authCert) {
-        state.submitForm.authCerts = [authCert];
+        submitForm.authCerts = [authCert];
     }
-    await testConnExec();
+    await testConnExec(submitForm);
     state.form.version = testConnRes.value.version.number;
     ElMessage.success(t('es.connSuccess'));
 };
@@ -174,8 +173,7 @@ const onConfirm = async () => {
     }
 
     await useI18nFormValidate(dbFormRef);
-    state.submitForm = await getReqForm();
-    await saveInstanceExec();
+    await saveInstanceExec(getReqForm());
     useI18nSaveSuccessMsg();
     state.form.id = saveInstanceRes as any;
     emit('val-change', state.form);

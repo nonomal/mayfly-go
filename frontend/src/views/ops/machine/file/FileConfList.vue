@@ -39,27 +39,35 @@
                 >
                 </el-pagination>
             </el-row>
+        </el-dialog>
 
-            <el-drawer destroy-on-close :title="fileDialog.title" v-model="fileDialog.visible" :close-on-click-modal="false" size="70%" header-class="!mb-0">
-                <machine-file
-                    :title="fileDialog.title"
-                    :machine-id="machineId"
-                    :auth-cert-name="props.authCertName"
-                    :file-id="fileDialog.fileId"
-                    :path="fileDialog.path"
-                    :protocol="protocol"
-                />
-            </el-drawer>
-
-            <machine-file-content
-                :title="fileContent.title"
-                v-model:visible="fileContent.contentVisible"
+        <el-drawer
+            resizable
+            destroy-on-close
+            :title="fileDialog.title"
+            v-model="fileDialog.visible"
+            :close-on-click-modal="false"
+            size="70%"
+            header-class="!mb-0"
+        >
+            <machine-file
+                :title="fileDialog.title"
                 :machine-id="machineId"
                 :auth-cert-name="props.authCertName"
-                :file-id="fileContent.fileId"
-                :path="fileContent.path"
+                :file-id="fileDialog.fileId"
+                :path="fileDialog.path"
+                :protocol="protocol"
             />
-        </el-dialog>
+        </el-drawer>
+
+        <machine-file-content
+            :title="fileContent.title"
+            v-model:visible="fileContent.contentVisible"
+            :machine-id="machineId"
+            :auth-cert-name="props.authCertName"
+            :file-id="fileContent.fileId"
+            :path="fileContent.path"
+        />
     </div>
 </template>
 

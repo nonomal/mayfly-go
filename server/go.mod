@@ -7,10 +7,10 @@ require (
 	gitee.com/liuzongyang/libpq v1.10.11
 	github.com/ClickHouse/clickhouse-go/v2 v2.40.1
 	github.com/antlr4-go/antlr/v4 v4.13.1
-	github.com/cloudwego/eino v0.8.9
-	github.com/cloudwego/eino-ext/components/model/openai v0.1.12
+	github.com/cloudwego/eino v0.8.11
+	github.com/cloudwego/eino-ext/components/model/openai v0.1.13
 	github.com/docker/docker v28.5.2+incompatible
-	github.com/docker/go-connections v0.6.0
+	github.com/docker/go-connections v0.7.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/glebarez/sqlite v1.11.0
 	github.com/go-gormigrate/gormigrate/v2 v2.1.5
@@ -64,7 +64,7 @@ require (
 	github.com/bytedance/sonic/loader v0.5.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
-	github.com/cloudwego/eino-ext/libs/acl/openai v0.1.16 // indirect
+	github.com/cloudwego/eino-ext/libs/acl/openai v0.1.17 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

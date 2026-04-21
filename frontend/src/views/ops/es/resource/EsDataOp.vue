@@ -613,7 +613,7 @@ const fetchIndexData = async () => {
 
     let api = Api.newPost(`/es/instance/proxy/${dt.instId}/${dt.idxName}/_search`);
 
-    const { execute: execSearch, data: searchRes, abort: abortSearch } = api.useApi<any>(dt.search, { esProxyReq: true });
+    const { execute: execSearch, data: searchRes, abort: abortSearch } = api.useApi(dt.search, { esProxyReq: true });
     dt.abortSearch = () => {
         abortSearch();
         dt.loading = false;

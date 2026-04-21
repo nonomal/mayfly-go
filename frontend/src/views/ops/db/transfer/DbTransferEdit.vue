@@ -246,7 +246,6 @@ const defaultKeys = ['tab-check', 'all', 'table-list'];
 
 const state = reactive({
     form: basicFormData,
-    submitForm: {} as any,
     srcTableFields: [] as string[],
     targetColumnList: [] as any[],
     filterSrcTableText: '',
@@ -267,9 +266,9 @@ const state = reactive({
     ],
 });
 
-const { form, submitForm } = toRefs(state);
+const { form } = toRefs(state);
 
-const { isFetching: saveBtnLoading, execute: saveExec } = dbTransferApi.saveDbTransferTask.useApi(submitForm);
+const { isFetching: saveBtnLoading, execute: saveExec } = dbTransferApi.saveDbTransferTask.useApi();
 
 watch(dialogVisible, async (newValue: boolean) => {
     if (!newValue) {
@@ -375,10 +374,6 @@ const handleLoadSrcTableTree = () => {
     });
 };
 
-const getReqForm = async () => {
-    return { ...state.form };
-};
-
 const srcTreeRef = ref();
 
 const getCheckedKeys = () => {
@@ -391,19 +386,19 @@ const getCheckedKeys = () => {
 
 const btnOk = async () => {
     await useI18nFormValidate(dbForm);
-    state.submitForm = await getReqForm();
+    const reqForm = { ...state.form };
 
     let checkedKeys = getCheckedKeys();
     if (checkedKeys.length > 0) {
-        state.submitForm.checkedKeys = checkedKeys.join(',');
+        reqForm.checkedKeys = checkedKeys.join(',');
     }
 
-    if (!state.submitForm.checkedKeys) {
+    if (!reqForm.checkedKeys) {
         ElMessage.error(t('db.noTransferTableMsg'));
         return false;
     }
 
-    await saveExec();
+    await saveExec(reqForm);
     useI18nSaveSuccessMsg();
     emit('val-change', state.form);
     cancel();

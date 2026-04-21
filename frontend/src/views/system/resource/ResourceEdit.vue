@@ -167,12 +167,11 @@ const state = reactive({
             link: '',
         },
     },
-    submitForm: {},
 });
 
-const { form, submitForm } = toRefs(state);
+const { form } = toRefs(state);
 
-const { isFetching: saveBtnLoading, execute: saveResouceExec } = resourceApi.save.useApi(submitForm);
+const { isFetching: saveBtnLoading, execute: saveResouceExec } = resourceApi.save.useApi();
 
 watch(visible, () => {
     if (!visible.value) {
@@ -210,8 +209,7 @@ const onConfirm = async () => {
         submitForm.meta = null as any;
     }
 
-    state.submitForm = submitForm;
-    await saveResouceExec();
+    await saveResouceExec(submitForm);
 
     emit('val-change', submitForm);
     ElMessage.success(t('common.saveSuccess'));

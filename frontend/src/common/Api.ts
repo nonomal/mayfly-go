@@ -3,8 +3,10 @@ import { RequestOptions, useApiFetch } from '@/hooks/useRequest';
 
 /**
  * 可用于各模块定义各自api请求
+ * T 请求返回的数据类型
+ * P 请求参数类型
  */
-class Api<T = any> {
+class Api<T = any, P = any> {
     /**
      * 请求url
      */
@@ -45,19 +47,19 @@ class Api<T = any> {
 
     /**
      * 响应式使用该api
-     * @param params 响应式params
+     * @param param 请求参数
      * @param reqOptions 其他可选值
      * @returns
      */
-    useApi<T>(params: any = null, reqOptions?: RequestOptions) {
-        return useApiFetch<T>(this, params, reqOptions);
+    useApi(param?: P, reqOptions?: RequestOptions) {
+        return useApiFetch<T, P>(this, param, reqOptions);
     }
 
     /**
      * fetch 请求对应的该api
      * @param {Object} param 请求该api的参数
      */
-    async request(param: any = null, options: any = {}): Promise<T> {
+    async request(param?: P, options: any = {}): Promise<T> {
         const { execute, data } = this.useApi(param, options);
         const res = await execute();
         return (data.value as T) || (res as T);
@@ -81,40 +83,40 @@ class Api<T = any> {
      * @param url url
      * @param method 请求方法(get,post,put,delete...)
      */
-    static create<T = any>(url: string, method: string): Api<T> {
-        return new Api<T>(url, method);
+    static create<T = any, P = any>(url: string, method: string): Api<T> {
+        return new Api<T, P>(url, method);
     }
 
     /**
      * 创建get api
      * @param url url
      */
-    static newGet<T = any>(url: string): Api<T> {
-        return Api.create(url, 'get');
+    static newGet<T = any, P = any>(url: string): Api<T, P> {
+        return Api.create<T, P>(url, 'get');
     }
 
     /**
      * new post api
      * @param url url
      */
-    static newPost<T = any>(url: string): Api<T> {
-        return Api.create(url, 'post');
+    static newPost<T = any, P = any>(url: string): Api<T, P> {
+        return Api.create<T, P>(url, 'post');
     }
 
     /**
      * new put api
      * @param url url
      */
-    static newPut<T = any>(url: string): Api<T> {
-        return Api.create(url, 'put');
+    static newPut<T = any, P = any>(url: string): Api<T, P> {
+        return Api.create<T, P>(url, 'put');
     }
 
     /**
      * new delete api
      * @param url url
      */
-    static newDelete<T = any>(url: string): Api<T> {
-        return Api.create(url, 'delete');
+    static newDelete<T = any, P = any>(url: string): Api<T, P> {
+        return Api.create<T, P>(url, 'delete');
     }
 }
 

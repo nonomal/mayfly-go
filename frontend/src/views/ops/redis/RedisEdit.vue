@@ -106,15 +106,14 @@ const state = reactive({
         remark: '',
         sshTunnelMachineId: -1,
     },
-    submitForm: {} as any,
     dbList: [0],
     pwd: '',
 });
 
-const { form, submitForm, dbList } = toRefs(state);
+const { form, dbList } = toRefs(state);
 
-const { isFetching: testConnBtnLoading, execute: testConnExec } = redisApi.testConn.useApi(submitForm);
-const { isFetching: saveBtnLoading, execute: saveRedisExec } = redisApi.saveRedis.useApi(submitForm);
+const { isFetching: testConnBtnLoading, execute: testConnExec } = redisApi.testConn.useApi();
+const { isFetching: saveBtnLoading, execute: saveRedisExec } = redisApi.saveRedis.useApi();
 
 watch(dialogVisible, () => {
     if (!dialogVisible.value) {
@@ -143,7 +142,7 @@ const changeDb = () => {
     state.form.db = state.dbList.length == 0 ? '' : state.dbList.join(',');
 };
 
-const getReqForm = async () => {
+const getReqForm = () => {
     const reqForm = { ...state.form };
     if (reqForm.mode == 'sentinel' && reqForm.host.split('=').length != 2) {
         ElMessage.error(t('redis.sentinelHostErr'));
@@ -157,15 +156,13 @@ const getReqForm = async () => {
 
 const onTestConn = async () => {
     await useI18nFormValidate(redisFormRef);
-    state.submitForm = await getReqForm();
-    await testConnExec();
+    await testConnExec(getReqForm());
     ElMessage.success(t('ac.connSuccess'));
 };
 
 const onConfirm = async () => {
     await useI18nFormValidate(redisFormRef);
-    state.submitForm = await getReqForm();
-    await saveRedisExec();
+    await saveRedisExec(getReqForm());
     useI18nSaveSuccessMsg();
     emit('val-change', state.form);
     onCancel();

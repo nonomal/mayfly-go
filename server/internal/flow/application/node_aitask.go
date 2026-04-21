@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"mayfly-go/internal/ai/agent"
+	"mayfly-go/internal/ai/pkg/utils"
 	"mayfly-go/internal/ai/prompt"
 	"mayfly-go/internal/flow/domain/entity"
 	"mayfly-go/internal/flow/imsg"
@@ -76,7 +77,7 @@ func (u *AiTaskNodeBehavior) Execute(ctx *ExecutionCtx) error {
 	}
 
 	auditRule := aitaskNode.AuditRule
-	sysPrompt, err := prompt.GetPrompt("flow_biz_audit.md", collx.Kvs("rule", auditRule))
+	sysPrompt, err := prompt.GetPrompt("flow/biz_audit.md", collx.Kvs("rule", auditRule))
 	if err != nil {
 		return err
 	}
@@ -103,7 +104,7 @@ func (u *AiTaskNodeBehavior) Execute(ctx *ExecutionCtx) error {
 		suggestion = fmt.Sprintf("AI agent response failed: %v", err)
 		logx.Error(suggestion)
 	} else {
-		resJson, err := agent.ParseLLMJSON2Map(res)
+		resJson, err := utils.ParseLLMJSON2Map(res)
 		if err != nil {
 			suggestion = fmt.Sprintf("AI agent response parsing to JSON failed: %v, response: %s", err, res)
 			logx.Error(suggestion)

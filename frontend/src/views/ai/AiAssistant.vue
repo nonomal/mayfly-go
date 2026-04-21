@@ -19,7 +19,7 @@
                 <template #header>
                     <div class="p-2 border-b" style="border-color: var(--el-border-color-lighter, #ebeef5)">
                         <el-button icon="plus" type="primary" @click="createNewSession" class="w-full shadow-sm hover:shadow-md transition-shadow duration-200">
-                            新建会话
+                            {{ t('ai.assistant.newSession') }}
                         </el-button>
                     </div>
                 </template>
@@ -43,27 +43,27 @@
 
         <!-- 右侧聊天区域 -->
         <main class="ml-3 flex-1 flex flex-col bg-linear-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-900">
-            <AiChat v-if="currentSessionId" :session-id="currentSessionId" :is-new-session="isNewSession" @activate="loadSessions" class="flex-1" />
+            <AiChat v-if="currentSessionId" :session-id="currentSessionId" :is-new-session="isNewSession" @activate="loadSessions" />
             <div v-else class="flex-1 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 space-y-4">
                 <div class="text-6xl opacity-20">💬</div>
-                <p class="text-lg font-medium">开始新的对话</p>
-                <p class="text-sm">选择一个会话或创建新会话</p>
+                <p class="text-lg font-medium">{{ t('ai.assistant.startNewConversation') }}</p>
+                <p class="text-sm">{{ t('ai.assistant.selectOrCreateSession') }}</p>
             </div>
         </main>
     </div>
 </template>
 
 <script setup lang="ts" name="AiAssistant">
-import { ref, onMounted, defineAsyncComponent, nextTick } from 'vue';
-import { formatDate } from '@/common/utils/format';
-import type { ConversationItem, ConversationMenuCommand } from 'vue-element-plus-x/types/Conversations';
-import { Conversations } from 'vue-element-plus-x';
-import { randomUuid } from '@/common/utils/string';
-import { aiApi } from './api';
-import { ElMessageBox } from 'element-plus';
-import { useI18nOperateSuccessMsg } from '@/hooks/useI18n';
 import { notBlankI18n } from '@/common/assert';
+import { formatDate } from '@/common/utils/format';
+import { randomUuid } from '@/common/utils/string';
+import { useI18nOperateSuccessMsg } from '@/hooks/useI18n';
+import { ElMessageBox } from 'element-plus';
+import { defineAsyncComponent, onMounted, ref } from 'vue';
+import { Conversations } from 'vue-element-plus-x';
+import type { ConversationItem, ConversationMenuCommand } from 'vue-element-plus-x/types/Conversations';
 import { useI18n } from 'vue-i18n';
+import { aiApi } from './api';
 
 const AiChat = defineAsyncComponent(() => import('./AiChat.vue'));
 

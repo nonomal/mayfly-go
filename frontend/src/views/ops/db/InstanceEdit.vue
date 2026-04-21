@@ -185,8 +185,8 @@ const submitForm = computed(() => {
     return reqForm;
 });
 
-const { isFetching: saveBtnLoading, execute: saveInstanceExec, data: saveInstanceRes } = dbApi.saveInstance.useApi(submitForm);
-const { isFetching: testConnBtnLoading, execute: testConnExec } = dbApi.testConn.useApi(submitForm);
+const { isFetching: saveBtnLoading, execute: saveInstanceExec, data: saveInstanceRes } = dbApi.saveInstance.useApi();
+const { isFetching: testConnBtnLoading, execute: testConnExec } = dbApi.testConn.useApi();
 
 watchEffect(() => {
     if (!dialogVisible.value) {
@@ -205,15 +205,17 @@ watchEffect(() => {
 
 const testConn = async (authCert: any) => {
     await useI18nFormValidate(dbFormRef);
-    submitForm.value.authCerts = [authCert];
-    await testConnExec();
+    await testConnExec({
+        ...submitForm.value,
+        authCerts: [authCert],
+    });
     ElMessage.success(t('db.connSuccess'));
 };
 
 const btnOk = async () => {
     await useI18nFormValidate(dbFormRef);
     notBlankI18n(submitForm.value.authCerts, 'db.acName');
-    await saveInstanceExec();
+    await saveInstanceExec(submitForm.value);
     useI18nSaveSuccessMsg();
     state.form.id = saveInstanceRes as any;
     emit('val-change', state.form);

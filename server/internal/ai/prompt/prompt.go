@@ -5,7 +5,7 @@ import (
 	"mayfly-go/pkg/utils/stringx"
 )
 
-//go:embed prompts/*.md
+//go:embed prompts/**/*.md
 var prompts embed.FS
 
 // GetPrompt 获取本地prompts文件内容，并进行模板解析

@@ -1,4 +1,4 @@
-package agent
+package utils
 
 import (
 	"bytes"
@@ -36,7 +36,6 @@ func ParseLLMJSON2Map(raw string) (collx.M, error) {
 		return *res, nil
 	}
 }
-
 
 func extractJSONCandidates(raw string) []string {
 	var results []string

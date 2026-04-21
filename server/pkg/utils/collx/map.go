@@ -52,6 +52,11 @@ func (m M) GetBool(key string) bool {
 	return cast.ToBool(m[key])
 }
 
+func (m M) Delete(key string) M {
+	delete(m, key)
+	return m
+}
+
 // Copy 复制一个新的map，在有线程并发读写时使用，避免并发读写导致数据不一致
 func CopyM(m M) M {
 	newMap := make(M)

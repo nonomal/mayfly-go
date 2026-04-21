@@ -61,16 +61,18 @@ func (s *sessionAppImpl) AppendMsgs(ctx context.Context, sessionKey string, msgs
 	messages := collx.ArrayMap(msgs, func(msg adk.Message) *entity.SessionMessage {
 		sm := &entity.SessionMessage{
 			SessionKey: sessionKey,
-			MessageId:  cmp.Or(agent.GetMessageId(msg), stringx.RandUUID()),
+			TurnId:     cmp.Or(agent.GetTurnId(msg), stringx.RandUUID()),
 			Role:       string(msg.Role),
 			Content:    msg.Content,
 			ToolCalls:  jsonx.ToStr(msg.ToolCalls),
-			ToolCallId: msg.ToolCallID,
+			ActionId:   agent.GetActionId(msg),
 		}
+		extra := collx.M(msg.Extra)
 		if msg.Role == schema.Tool {
-			sm.SetExtraValue("toolName", msg.ToolName).
-				SetExtraValue("toolStatus", msg.Extra["toolStatus"])
+			extra.Set("toolName", msg.ToolName)
 		}
+		extra.Delete("reasoning-content") // 思考内容可能很多
+		sm.Extra = extra
 		return sm
 	})
 
@@ -79,15 +81,20 @@ func (s *sessionAppImpl) AppendMsgs(ctx context.Context, sessionKey string, msgs
 
 // GetHistory 获取会话历史消息
 func (s *sessionAppImpl) GetHistory(ctx context.Context, sessionKey string, limit int) ([]adk.Message, error) {
+	if limit <= 0 {
+		limit = 1000
+	}
 	messages, err := s.sessionMessageRepo.SelectHistory(ctx, sessionKey, limit)
 	if err != nil {
 		return nil, err
 	}
 	return collx.ArrayMap(messages, func(msg *entity.SessionMessage) adk.Message {
 		sm := &schema.Message{
-			Role:       schema.RoleType(msg.Role),
-			Content:    msg.Content,
-			ToolCallID: msg.ToolCallId,
+			Role:    schema.RoleType(msg.Role),
+			Content: msg.Content,
+		}
+		if msg.Role == string(schema.Tool) {
+			sm.ToolCallID = msg.ActionId
 		}
 		if msg.ToolCalls != "" {
 			tollcalls, _ := jsonx.ToByStr[[]schema.ToolCall](msg.ToolCalls)
@@ -116,10 +123,13 @@ func (s *sessionAppImpl) GetMeta(ctx context.Context, sessionKey string) (*sessi
 	}
 
 	return &session.SessionMeta{
-		Key:       sessionMeta.SessionKey,
-		Summary:   sessionMeta.Summary,
-		CreatedAt: *sessionMeta.CreateTime,
-		UpdatedAt: *sessionMeta.UpdateTime,
+		Key:        sessionMeta.SessionKey,
+		Summary:    sessionMeta.Summary,
+		Count:      sessionMeta.MessageCount,
+		TokenCount: sessionMeta.TokenCount,
+		CreatedAt:  *sessionMeta.CreateTime,
+		UpdatedAt:  *sessionMeta.UpdateTime,
+		Skip:       sessionMeta.GetExtraInt("skip"),
 	}, nil
 }
 
@@ -131,6 +141,7 @@ func (s *sessionAppImpl) SaveMeta(ctx context.Context, meta *session.SessionMeta
 		MessageCount: meta.Count,
 		TokenCount:   meta.TokenCount,
 	}
+	session.SetExtraValue("skip", meta.Skip)
 
 	// 检查是否存在，存在则更新，不存在则创建
 	existing := &entity.Session{SessionKey: meta.Key}

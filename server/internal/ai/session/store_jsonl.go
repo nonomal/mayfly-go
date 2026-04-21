@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"log"
+	"mayfly-go/pkg/logx"
 	"mayfly-go/pkg/utils/filex"
 	"os"
 	"path/filepath"
@@ -260,21 +261,19 @@ func (s *JSONLStore) GetHistory(
 	l.Lock()
 	defer l.Unlock()
 
-	meta, err := s.readMeta(sessionKey)
+	// Store 层只负责简单读取，不处理业务逻辑（如 Skip）
+	// 从第 0 行开始读取所有消息
+	msgs, err := readMessages(s.jsonlPath(sessionKey), 0)
 	if err != nil {
 		return nil, err
 	}
 
-	// Pass meta.Skip so readMessages skips those lines without
-	// unmarshaling them — avoids wasted CPU on truncated messages.
-	msgs, err := readMessages(s.jsonlPath(sessionKey), meta.Skip)
-	if err != nil {
-		return nil, err
-	}
+	logx.DebugfContext(context.Background(), "[Store] GetHistory: loaded %d messages, limit=%d", len(msgs), limit)
 
 	// Apply limit if specified and positive
 	if limit > 0 && len(msgs) > limit {
 		msgs = msgs[len(msgs)-limit:]
+		logx.DebugfContext(context.Background(), "[Store] GetHistory: after limit, returning %d messages", len(msgs))
 	}
 
 	return msgs, nil

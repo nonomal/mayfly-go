@@ -8,12 +8,14 @@ import (
 	"mayfly-go/internal/ai/application"
 	"mayfly-go/internal/ai/application/dto"
 	"mayfly-go/internal/ai/domain/entity"
+	"mayfly-go/internal/ai/tools"
 	"mayfly-go/pkg/biz"
 	"mayfly-go/pkg/logx"
 	"mayfly-go/pkg/req"
 	"mayfly-go/pkg/utils/anyx"
 	"mayfly-go/pkg/utils/collx"
 	"mayfly-go/pkg/utils/jsonx"
+	"mayfly-go/pkg/validatorx"
 	"mayfly-go/pkg/ws"
 	"time"
 
@@ -69,12 +71,13 @@ func (a *Ai) ChatMessages(rc *req.Ctx) {
 	biz.ErrIsNil(err)
 	rc.ResData = collx.ArrayMap(messages, func(msg *entity.SessionMessage) *vo.ChatMsg {
 		cm := &vo.ChatMsg{
-			MessageId:        msg.MessageId,
+			TurnId:           msg.TurnId,
 			Content:          msg.Content,
 			ReasoningContent: msg.GetExtraString("reasoningContent"),
 			Time:             *msg.CreateTime,
 			Role:             msg.Role,
-			ToolCallId:       msg.ToolCallId,
+			ActionId:         msg.ActionId,
+			Extra:            msg.Extra,
 		}
 		if msg.ToolCalls != "" {
 			tollcalls, _ := jsonx.ToByStr[[]schema.ToolCall](msg.ToolCalls)
@@ -90,7 +93,7 @@ func (a *Ai) Chat(rc *req.Ctx) {
 	defer func() {
 		if wsConn != nil {
 			if err := recover(); err != nil {
-				wsConn.WriteMessage(websocket.TextMessage, []byte(jsonx.ToStr(&vo.ChatMsg{Content: anyx.ToString(err), Time: time.Now()})))
+				wsConn.WriteMessage(websocket.TextMessage, []byte(jsonx.ToStr(&vo.ChatMsg{Role: string(agent.RoleInternal), Type: "error", Content: anyx.ToString(err), Time: time.Now()})))
 			}
 			wsConn.Close()
 		}
@@ -114,11 +117,13 @@ func (a *Ai) Chat(rc *req.Ctx) {
 		}
 
 		now := time.Now()
+
 		if messageType == websocket.TextMessage {
 			chatMsg, err := jsonx.To[form.ChatMsg](message)
 			biz.ErrIsNilAppendErr(err, "parse chat message error: %s")
 
-			_, err = ag.Run(ctx, collx.AsArray(schema.UserMessage(chatMsg.Content)),
+			var userMessage []adk.Message
+			agentRunOptions := []agent.RunOption{
 				agent.WithRunSessionKey(chatMsg.SessionId),
 				agent.WithOnChunk(func(ctx context.Context, m adk.Message) error {
 					// 工具调用，不推送前端，等完整事件处理结束后推送，不然前端没法获取完整工具调用内容
@@ -137,27 +142,46 @@ func (a *Ai) Chat(rc *req.Ctx) {
 					return nil
 				}),
 				agent.WithOnEvent(func(ctx context.Context, ae *adk.AgentEvent, m adk.Message) error {
-					if len(m.ToolCalls) > 0 || m.Role == schema.Tool {
+					if len(m.ToolCalls) > 0 || m.Role == schema.Tool || m.Role == agent.RoleInternal {
 						respMsg := vo.ChatMsg{
 							Type:             "tool",
+							TurnId:           agent.GetTurnId(m),
 							Time:             now,
 							Role:             string(m.Role),
 							Content:          m.Content,
 							ReasoningContent: m.ReasoningContent,
 							ToolCalls:        m.ToolCalls,
-							ToolCallId:       m.ToolCallID,
+							ActionId:         agent.GetActionId(m),
+							Extra:            m.Extra,
 						}
 						wsConn.WriteMessage(websocket.TextMessage, []byte(jsonx.ToStr(respMsg)))
 					}
 					return nil
 				}),
-			)
-
-			if err != nil {
-				wsConn.WriteMessage(websocket.TextMessage, []byte(jsonx.ToStr(&vo.ChatMsg{Type: "error", Content: err.Error(), Time: now})))
-			} else {
-				wsConn.WriteMessage(websocket.TextMessage, []byte(jsonx.ToStr(&vo.ChatMsg{Type: "end", Time: now})))
 			}
+
+			if chatMsg.Type == form.ChatMsgTypeInterruptResume {
+				ir, err := jsonx.ToByStr[tools.InterruptResume](chatMsg.Content)
+				biz.ErrIsNil(err)
+				biz.ErrIsNil(validatorx.Validate(ir))
+				agentRunOptions = append(agentRunOptions,
+					agent.WithResumeParams(ir),
+					agent.WithTurnId(ir.TurnId),
+				)
+			} else {
+				userMessage = collx.AsArray(schema.UserMessage(chatMsg.Content))
+			}
+
+			_, err = ag.Run(ctx, userMessage, agentRunOptions...)
+
+			endMsg := &vo.ChatMsg{Role: string(agent.RoleInternal), Time: now}
+			if err != nil {
+				endMsg.Type = "error"
+				endMsg.Content = err.Error()
+			} else {
+				endMsg.Type = "end"
+			}
+			wsConn.WriteMessage(websocket.TextMessage, []byte(jsonx.ToStr(endMsg)))
 		}
 	}
 }

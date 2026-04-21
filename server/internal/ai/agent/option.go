@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"mayfly-go/internal/ai/tools"
+	"mayfly-go/pkg/utils/stringx"
 
 	"github.com/cloudwego/eino/adk"
 )
@@ -52,14 +53,12 @@ func WithMaxStep(maxStep int) option {
 	}
 }
 
-// runOption 定义了Agent执行时的配置选项
-
-type runOption func(*runOptions)
-
 type runOptions struct {
 	adkRunOptions []adk.AgentRunOption
 	sessionKey    string
 	userId        string
+	turnId        string                   // 一次完整回复id
+	resumeParams  []*tools.InterruptResume // 恢复参数
 
 	// onChunk 流式内容块回调函数
 	// 当 Agent 产生增量输出（如 LLM 生成的每一个 Token 或片段）时触发。
@@ -89,21 +88,52 @@ func (ro *runOptions) CallOnEvent(ctx context.Context, event *adk.AgentEvent, ms
 	return nil
 }
 
-func WithRunAdkOptions(options ...adk.AgentRunOption) runOption {
+// newRunOptions 创建一个RunOptions
+func newRunOptions(ctx context.Context, opts ...RunOption) *runOptions {
+	options := &runOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	if options.turnId == "" {
+		options.turnId = stringx.RandUUID()
+	}
+
+	return options
+}
+
+// runOption 定义了Agent执行时的配置选项
+
+type RunOption func(*runOptions)
+
+func WithRunAdkOptions(options ...adk.AgentRunOption) RunOption {
 	return func(opts *runOptions) {
 		opts.adkRunOptions = options
 	}
 }
 
-func WithRunSessionKey(sessionKey string) runOption {
+func WithRunSessionKey(sessionKey string) RunOption {
 	return func(opts *runOptions) {
 		opts.sessionKey = sessionKey
 	}
 }
 
-func WithRunUserId(userId string) runOption {
+func WithRunUserId(userId string) RunOption {
 	return func(opts *runOptions) {
 		opts.userId = userId
+	}
+}
+
+func WithTurnId(turnId string) RunOption {
+	return func(opts *runOptions) {
+		opts.turnId = turnId
+	}
+}
+
+// WithResumeParams
+func WithResumeParams(resumeParams ...*tools.InterruptResume) RunOption {
+	return func(opts *runOptions) {
+		opts.resumeParams = resumeParams
 	}
 }
 
@@ -113,7 +143,7 @@ func WithRunUserId(userId string) runOption {
 // 1. 前端实现“打字机”效果，实时逐字显示 AI 回复。
 // 2. 实时展示 AI 的思考过程（ReasoningContent）。
 // 注意：由于触发频率极高，回调函数内部应避免执行耗时操作，以免阻塞 Agent 运行。
-func WithOnChunk(onChunk func(context.Context, adk.Message) error) runOption {
+func WithOnChunk(onChunk func(context.Context, adk.Message) error) RunOption {
 	return func(opts *runOptions) {
 		opts.onChunk = onChunk
 	}
@@ -128,7 +158,7 @@ func WithOnChunk(onChunk func(context.Context, adk.Message) error) runOption {
 // 参数说明：
 //   - event: 事件信息
 //   - msg: 该事件产生的完整消息对象（而非增量片段）。
-func WithOnEvent(onEvent func(context.Context, *adk.AgentEvent, adk.Message) error) runOption {
+func WithOnEvent(onEvent func(context.Context, *adk.AgentEvent, adk.Message) error) RunOption {
 	return func(opts *runOptions) {
 		opts.onEvent = onEvent
 	}

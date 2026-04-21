@@ -17,7 +17,7 @@ func newSessionMessageRepo() repository.SessionMessage {
 
 func (s *sessionMessageRepoImpl) SelectHistory(ctx context.Context, sessionKey string, limit int) ([]*entity.SessionMessage, error) {
 	var messages []*entity.SessionMessage
-	if err := s.SelectBySql("select * from t_ai_session_message where session_key = ? order by id asc limit ?", &messages, sessionKey, limit); err != nil {
+	if err := s.SelectBySql("select * from t_ai_session_message where session_key = ? and role in ('system','user','assistant','tool') order by id asc limit ?", &messages, sessionKey, limit); err != nil {
 		return nil, err
 	}
 	return messages, nil

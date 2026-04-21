@@ -6,13 +6,30 @@ import (
 	"github.com/cloudwego/eino/adk"
 )
 
-// GetMessageId 获取消息id
-func GetMessageId(msg adk.Message) string {
-	return collx.M(msg.Extra).GetStr("messageId")
+// GetTurnId 获取turn id
+func GetTurnId(msg adk.Message) string {
+	return collx.M(msg.Extra).GetStr("turnId")
 }
 
-// SetMessageId 设置消息id
-func SetMessageId(msg adk.Message, messageId string) {
+// SetTurnId 设置tern id
+func SetTurnId(msg adk.Message, turnId string) {
+	SetMessageExtra(msg, "turnId", turnId)
+}
+
+func SetActionId(msg adk.Message, actionId string) {
+	SetMessageExtra(msg, "actionId", actionId)
+}
+
+func GetActionId(msg adk.Message) string {
+	return collx.M(msg.Extra).GetStr("actionId")
+}
+
+func SetToolStatus(msg adk.Message, status string) {
+	SetMessageExtra(msg, "toolStatus", status)
+}
+
+// SetMessageExtra 设置message extra
+func SetMessageExtra(msg adk.Message, key string, value any) {
 	m := collx.M(msg.Extra)
-	msg.Extra = *m.Set("messageId", messageId)
+	msg.Extra = *m.Set(key, value)
 }

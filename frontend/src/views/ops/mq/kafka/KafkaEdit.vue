@@ -111,13 +111,12 @@ const state = reactive({
         sshTunnelMachineId: null as any,
         tagCodePaths: [],
     },
-    submitForm: {},
 });
 
-const { tabActiveName, form, submitForm } = toRefs(state);
+const { tabActiveName, form } = toRefs(state);
 
-const { isFetching: testConnBtnLoading, execute: testConnExec } = mqApi.KafkaTestConn.useApi(submitForm);
-const { isFetching: saveBtnLoading, execute: saveKafkaExec } = mqApi.kafkaSave.useApi(submitForm);
+const { isFetching: testConnBtnLoading, execute: testConnExec } = mqApi.KafkaTestConn.useApi();
+const { isFetching: saveBtnLoading, execute: saveKafkaExec } = mqApi.kafkaSave.useApi();
 
 watchEffect(() => {
     if (!dialogVisible.value) {
@@ -143,15 +142,13 @@ const getReqForm = () => {
 
 const onTestConn = async () => {
     await useI18nFormValidate(kafkaFormRef);
-    state.submitForm = getReqForm();
-    await testConnExec();
+    await testConnExec(getReqForm());
     ElMessage.success(t('ac.connSuccess'));
 };
 
 const onConfirm = async () => {
     await useI18nFormValidate(kafkaFormRef);
-    state.submitForm = getReqForm();
-    await saveKafkaExec();
+    await saveKafkaExec(getReqForm());
     useI18nSaveSuccessMsg();
     emit('val-change', state.form);
     onCancel();

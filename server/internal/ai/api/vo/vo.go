@@ -1,6 +1,7 @@
 package vo
 
 import (
+	"mayfly-go/pkg/utils/collx"
 	"time"
 
 	"github.com/cloudwego/eino/schema"
@@ -9,10 +10,11 @@ import (
 type ChatMsg struct {
 	Type             string            `json:"type,omitempty"` // "text", "tool", "end"
 	Time             time.Time         `json:"time"`
-	MessageId        string            `json:"messageId"`
+	TurnId           string            `json:"turnId"`
 	Role             string            `json:"role"`
 	Content          string            `json:"content"`
 	ReasoningContent string            `json:"reasoningContent,omitempty"`
 	ToolCalls        []schema.ToolCall `json:"toolCalls,omitempty"`
-	ToolCallId       string            `json:"toolCallId,omitempty"`
+	ActionId         string            `json:"actionId,omitempty"`
+	Extra            collx.M           `json:"extra,omitempty"`
 }

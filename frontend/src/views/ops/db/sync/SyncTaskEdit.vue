@@ -15,23 +15,25 @@
                                 </el-form-item>
                             </el-col>
 
-                            <el-col :span="12">
+                            <el-col :span="8">
                                 <el-form-item prop="taskCron" label="cron" required>
                                     <CrontabInput v-model="form.taskCron" />
                                 </el-form-item>
                             </el-col>
-                        </el-row>
 
-                        <el-form-item prop="status" :label="$t('common.status')" label-position="left" label-width="60" required>
-                            <el-switch
-                                v-model="form.status"
-                                inline-prompt
-                                :active-text="$t('common.enable')"
-                                :inactive-text="$t('common.disable')"
-                                :active-value="1"
-                                :inactive-value="-1"
-                            />
-                        </el-form-item>
+                            <el-col :span="4">
+                                <el-form-item prop="status" :label="$t('common.status')" label-width="60" required>
+                                    <el-switch
+                                        v-model="form.status"
+                                        inline-prompt
+                                        :active-text="$t('common.enable')"
+                                        :inactive-text="$t('common.disable')"
+                                        :active-value="1"
+                                        :inactive-value="-1"
+                                    />
+                                </el-form-item>
+                            </el-col>
+                        </el-row>
 
                         <el-form-item prop="srcDbId" :label="$t('db.srcDb')" required>
                             <db-select-tree
@@ -292,7 +294,6 @@ const basicFormData = {
 const state = reactive({
     tabActiveName: 'basic',
     form: basicFormData,
-    submitForm: {} as any,
     srcTableFields: [] as string[],
     targetTableList: [] as { tableName: string; tableComment: string }[],
     targetColumnList: [] as any[],
@@ -305,9 +306,9 @@ const state = reactive({
     fieldMapTableHeight: window.innerHeight - 50,
 });
 
-const { tabActiveName, form, submitForm, fieldMapTableHeight } = toRefs(state);
+const { tabActiveName, form, fieldMapTableHeight } = toRefs(state);
 
-const { isFetching: saveBtnLoading, execute: saveExec } = dbSyncApi.saveDatasyncTask.useApi(submitForm);
+const { isFetching: saveBtnLoading, execute: saveExec } = dbSyncApi.saveDatasyncTask.useApi();
 
 // 基础字段信息是否填写完整
 const baseFieldCompleted = computed(() => {
@@ -526,16 +527,11 @@ const handleGetTargetFields = async () => {
     }
 };
 
-const getReqForm = async () => {
-    return { ...state.form };
-};
-
 const btnOk = async () => {
     await useI18nFormValidate(dbForm);
-    // 处理一些数字类型
-    state.submitForm = await getReqForm();
-    state.submitForm.fieldMap = JSON.stringify(state.form.fieldMap);
-    await saveExec();
+    const reqForm: any = { ...state.form };
+    reqForm.fieldMap = JSON.stringify(state.form.fieldMap);
+    await saveExec(reqForm);
     useI18nSaveSuccessMsg();
     emit('val-change', state.form);
     cancel();

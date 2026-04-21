@@ -1,5 +1,4 @@
 import Api from '@/common/Api';
-import { joinClientParams } from '@/common/request';
 
 export interface Session {
     sessionKey: string;
@@ -17,14 +16,14 @@ export interface ToolCall {
 }
 
 export interface SessionMessage {
-    messageId?: string;
+    turnId?: string;
     role: string;
     content: string;
     type?: string;
     time?: any;
     reasoningContent?: string;
     toolCalls?: ToolCall[];
-    toolCallId?: string;
+    actionId?: string;
     extra?: any;
 }
 

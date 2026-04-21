@@ -17,4 +17,10 @@ func Init() {
 	} else {
 		tools.DefaultRegistry.Register(queryDataTool)
 	}
+
+	if sqlExecTool, err := GetSqlExec(); err != nil {
+		logx.Errorf("agent tool - 获取ExecSql工具失败: %v", err)
+	} else {
+		tools.DefaultRegistry.Register(sqlExecTool)
+	}
 }

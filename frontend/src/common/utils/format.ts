@@ -126,3 +126,47 @@ export function formatAxis(param: any) {
     else if (hour < 22) return '晚上好';
     else return '夜里好';
 }
+
+/**
+ * 格式化数据为美观的 JSON 字符串
+ *
+ * - 如果输入是对象，直接格式化为缩进 JSON
+ * - 如果输入是 JSON 字符串，先解析为对象再格式化
+ * - 如果解析失败，返回原始值的字符串形式
+ * - 如果输入为空值，返回空字符串
+ *
+ * @param val - 要格式化的数据（对象或 JSON 字符串）
+ * @returns 格式化后的 JSON 字符串，带 2 空格缩进
+ *
+ * @example
+ * ```ts
+ * // 格式化对象
+ * formatJson({ name: 'test', value: 123 })
+ * // 输出: '{\n  "name": "test",\n  "value": 123\n}'
+ *
+ * // 格式化 JSON 字符串
+ * formatJson('{"name":"test"}')
+ * // 输出: '{\n  "name": "test"\n}'
+ *
+ * // 处理无效输入
+ * formatJson(null)
+ * // 输出: ''
+ * ```
+ */
+export function formatJson(val: any) {
+    if (!val) {
+        return '';
+    }
+
+    try {
+        // 如果val是字符串，尝试解析为对象后再格式化
+        let data = val;
+        if (typeof val === 'string') {
+            data = JSON.parse(val);
+        }
+        return JSON.stringify(data, null, 2);
+    } catch {
+        // 如果解析失败，直接返回原始值的字符串形式
+        return String(val);
+    }
+}
