@@ -70,7 +70,10 @@ func (d *kafkaAppImpl) TestConn(me *entity.Kafka) error {
 	if err != nil {
 		return err
 	}
-	conn.Close()
+	_, err = conn.GetTopics()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -85,18 +88,20 @@ func (d *kafkaAppImpl) SaveKafka(ctx context.Context, m *entity.Kafka, tagCodePa
 		// 生成随机编号
 		m.Code = stringx.Rand(10)
 
-		return d.Tx(ctx, func(ctx context.Context) error {
-			return d.Insert(ctx, m)
-		}, func(ctx context.Context) error {
-			return d.tagTreeApp.SaveResourceTag(ctx, &tagdto.SaveResourceTag{
-				ResourceTag: &tagdto.ResourceTag{
-					Type: tagentity.TagTypeMqKafka,
-					Code: m.Code,
-					Name: m.Name,
-				},
-				ParentTagCodePaths: tagCodePaths,
+		return d.Tx(ctx,
+			func(ctx context.Context) error {
+				return d.Insert(ctx, m)
+			},
+			func(ctx context.Context) error {
+				return d.tagTreeApp.SaveResourceTag(ctx, &tagdto.SaveResourceTag{
+					ResourceTag: &tagdto.ResourceTag{
+						Type: tagentity.TagTypeMqKafka,
+						Code: m.Code,
+						Name: m.Name,
+					},
+					ParentTagCodePaths: tagCodePaths,
+				})
 			})
-		})
 	}
 
 	// 如果存在该库，则校验修改的库是否为该库

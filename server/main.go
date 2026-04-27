@@ -11,6 +11,7 @@ import (
 	_ "mayfly-go/internal/file/init"
 	_ "mayfly-go/internal/flow/init"
 	_ "mayfly-go/internal/machine/init"
+	_ "mayfly-go/internal/milvus/init"
 	_ "mayfly-go/internal/mongo/init"
 	_ "mayfly-go/internal/mq/init"
 	_ "mayfly-go/internal/msg/init"
@@ -57,10 +58,10 @@ func main() {
 func printBanner() {
 	buildInfo, _ := debug.ReadBuildInfo()
 	logx.Print(fmt.Sprintf(`
-                        __ _                         
- _ __ ___   __ _ _   _ / _| |_   _        __ _  ___  
-| '_ ' _ \ / _' | | | | |_| | | | |_____ / _' |/ _ \ 
+                        __ _
+ _ __ ___   __ _ _   _ / _| |_   _        __ _  ___
+| '_ ' _ \ / _' | | | | |_| | | | |_____ / _' |/ _ \
 | | | | | | (_| | |_| |  _| | |_| |_____| (_| | (_) |   version: %s | go_version: %s | pid: %d
-|_| |_| |_|\__,_|\__, |_| |_|\__, |      \__, |\___/ 
+|_| |_| |_|\__,_|\__, |_| |_|\__, |      \__, |\___/
                  |___/       |___/       |___/       `, config.Version, buildInfo.GoVersion, os.Getpid()))
 }

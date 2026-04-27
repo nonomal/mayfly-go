@@ -99,7 +99,6 @@ const rules = {
 const kafkaFormRef: any = useTemplateRef('kafkaFormRef');
 
 const state = reactive({
-    tabActiveName: 'basic',
     form: {
         id: null,
         code: '',
@@ -113,7 +112,7 @@ const state = reactive({
     },
 });
 
-const { tabActiveName, form } = toRefs(state);
+const { form } = toRefs(state);
 
 const { isFetching: testConnBtnLoading, execute: testConnExec } = mqApi.KafkaTestConn.useApi();
 const { isFetching: saveBtnLoading, execute: saveKafkaExec } = mqApi.kafkaSave.useApi();
@@ -122,13 +121,12 @@ watchEffect(() => {
     if (!dialogVisible.value) {
         return;
     }
-    state.tabActiveName = 'basic';
     const kafka: any = props.kafka;
     if (kafka) {
         state.form = { ...kafka };
         state.form.tagCodePaths = kafka.tags.map((t: any) => t.codePath);
     } else {
-        state.form = { db: 0, tagCodePaths: [] } as any;
+        state.form = { saslMechanism: 'PLAIN', tagCodePaths: [] } as any;
     }
 });
 

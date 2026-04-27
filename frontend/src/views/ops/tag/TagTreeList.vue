@@ -308,7 +308,7 @@ const filterNode = (value: string, data: Tree) => {
 };
 
 const search = async () => {
-    let res = await tagApi.getTagTrees.request(null);
+    let res = await tagApi.getTagTrees.request({ flatten: '0' });
     res.unshift(allNode);
     state.data = res;
 };

@@ -1,7 +1,7 @@
 <template>
     <div class="monaco-editor-custom relative h-full">
         <div class="monaco-editor-content" ref="monacoTextareaRef" :style="{ height: height }"></div>
-        <el-select v-if="canChangeMode" class="code-mode-select" v-model="languageMode" @change="changeLanguage" filterable>
+        <el-select v-if="canChangeMode" class="code-mode-select" v-model="languageMode" @change="changeLanguage" filterable size="small">
             <el-option v-for="mode in languageArr" :key="mode.value" :label="mode.label" :value="mode.value" />
         </el-select>
     </div>
@@ -34,6 +34,7 @@ import 'monaco-editor/esm/vs/editor/contrib/suggest/browser/suggestInlineComplet
 import { editor, languages } from 'monaco-editor';
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker.js?worker';
 import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
+import HtmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker';
 import SolarizedLight from './themes/Solarized-light.json';
 import SolarizedDark from './themes/Solarized-dark.json';
 import { language as shellLan } from 'monaco-editor/esm/vs/basic-languages/shell/shell.js';
@@ -89,7 +90,11 @@ const languageArr = [
     },
     {
         value: 'html',
-        label: 'XML/HTML',
+        label: 'Html',
+    },
+    {
+        value: 'xml',
+        label: 'Xml',
     },
     {
         value: 'python',
@@ -160,6 +165,9 @@ self.MonacoEnvironment = {
     getWorker(_: any, label: string) {
         if (label === 'json') {
             return new JsonWorker();
+        }
+        if (label === 'html') {
+            return new HtmlWorker();
         }
         return new EditorWorker();
     },
@@ -319,7 +327,7 @@ defineExpose({ getEditor, format, focus });
         z-index: 2;
         right: 10px;
         top: 10px;
-        max-width: 130px;
+        max-width: 100px;
     }
 
     border: 1px solid var(--el-border-color-light, #ebeef5);

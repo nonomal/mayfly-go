@@ -4,8 +4,13 @@ import { getClientId, getToken } from './utils/storage';
 import { templateResolve } from './utils/string';
 import { ElMessage } from 'element-plus';
 import axios from 'axios';
+import JSONBig from 'json-bigint';
 import { useApiFetch } from '../hooks/useRequest';
 import Api from './Api';
+
+// 配置 JSONBig：将大数（int64/uint64）转为字符串，避免精度丢失
+// storeAsString: 将大数存储为字符串，而不是 BigNumber 对象
+const JSONBigString = JSONBig({ storeAsString: true });
 
 export default {
     request,
@@ -58,6 +63,22 @@ function notifyErrorMsg(msg: string) {
 const axiosInst = axios.create({
     baseURL: baseUrl, // url = base url + request url
     timeout: 60000, // request timeout
+    // 使用 json-bigint 处理响应数据，解决 int64/uint64 精度丢失问题
+    transformResponse: [
+        function (data) {
+            // 对响应数据进行转换
+            if (typeof data === 'string') {
+                try {
+                    // 使用 JSONBigString 解析，大数会被转为字符串
+                    return JSONBigString.parse(data);
+                } catch (err) {
+                    // 如果解析失败，返回原始数据
+                    return data;
+                }
+            }
+            return data;
+        },
+    ],
 });
 
 // request interceptor

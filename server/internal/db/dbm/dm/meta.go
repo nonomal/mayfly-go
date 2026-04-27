@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"mayfly-go/internal/db/dbm/dbi"
 	"mayfly-go/pkg/utils/collx"
-	"net/url"
 	"strings"
 
 	_ "gitee.com/chunanyong/dm"
@@ -26,31 +25,19 @@ type Meta struct {
 func (dm *Meta) GetSqlDb(ctx context.Context, d *dbi.DbInfo) (*sql.DB, error) {
 	driverName := "dm"
 	db := d.Database
-	schema := ""
 	dbParam := "?escapeProcess=true"
 	if db != "" {
 		// dm database可以使用db/schema表示，方便连接指定schema, 若不存在schema则使用默认schema
 		ss := strings.Split(db, "/")
 		if len(ss) > 1 {
-			schema = ss[1]
+			dbParam = fmt.Sprintf("%s&schema=\"%s\"", dbParam, ss[1])
 		}
 	}
 	if d.Params != "" {
 		dbParam += "&" + d.Params
 	}
-	dsn := fmt.Sprintf("dm://%s:%s@%s:%d%s&appName=mayfly-go", d.Username, url.PathEscape(d.Password), d.Host, d.Port, dbParam)
-	conn, err := sql.Open(driverName, dsn)
-	if err != nil {
-		return nil, err
-	}
-	if schema != "" {
-		_, err := conn.Exec(fmt.Sprintf("SET SCHEMA %s", schema))
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return conn, nil
+	dsn := fmt.Sprintf("dm://%s:%s@%s:%d%s&appName=mayfly-go", d.Username, d.Password, d.Host, d.Port, dbParam)
+	return sql.Open(driverName, dsn)
 }
 
 func (dm *Meta) GetDialect(conn *dbi.DbConn) dbi.Dialect {

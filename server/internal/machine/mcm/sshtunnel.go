@@ -42,19 +42,24 @@ func GetSshTunnelMachine(ctx context.Context, machineId int, getMachine func(uin
 		}
 		logx.Infof("ssh tunnel machine - connect to machine for the first time - [%d][%s:%d]", machineId, mi.Ip, mi.Port)
 
-		clients := []*ssh.Client{}
+		var clients []*ssh.Client
+
+		// 收集所有机器信息（从内到外）
+		var machines []*MachineInfo
+		for mi != nil {
+			machines = append(machines, mi)
+			mi = mi.SshTunnelMachine
+		}
+
+		// 从最外层跳板机开始，逐层向内建立连接
 		var prev *ssh.Client
-		for {
-			client, err := mi.GetSshClient(prev)
+		for i := len(machines) - 1; i >= 0; i-- {
+			client, err := machines[i].GetSshClient(prev)
 			if err != nil {
 				return nil, err
 			}
 			clients = append(clients, client)
 			prev = client
-			mi = mi.SshTunnelMachine
-			if mi == nil {
-				break
-			}
 		}
 
 		stm := &SshTunnelMachine{sshClients: clients, machineId: machineId, tunnels: map[string]*Tunnel{}}

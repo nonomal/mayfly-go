@@ -110,3 +110,10 @@ declare interface KeepAliveNamesState {
     keepAliveNames: string[];
     cachedViews: string[];
 }
+
+declare interface MilvusState {
+    dbs: any[],
+    selectedDb: string,
+    selectedCollection: string
+    collections: any[],
+}

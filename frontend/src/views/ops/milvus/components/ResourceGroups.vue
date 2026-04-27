@@ -1,0 +1,130 @@
+<template>
+    <el-button size="small" icon="plus" type="primary" @click="handleCreate">{{ $t('milvus.createResourceGroup') }}</el-button>
+    <el-button size="small" text icon="refresh" @click="loadList" :loading="loading" />
+
+    <el-table :data="list">
+        <el-table-column prop="name" :label="$t('milvus.resourceGroupName')" />
+        <el-table-column :label="$t('common.operation')" width="250">
+            <template #default="{ row }">
+                <el-button size="small" @click="handleDescribe(row)">{{ $t('milvus.detail') }}</el-button>
+                <el-button size="small" type="danger" @click="handleDrop(row)">{{ $t('common.delete') }}</el-button>
+            </template>
+        </el-table-column>
+    </el-table>
+
+    <el-dialog v-model="createDialog.visible" :title="$t('milvus.createResourceGroup')" width="500px">
+        <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-width="auto">
+            <el-form-item :label="$t('milvus.resourceGroupName')" prop="name">
+                <el-input v-model="createForm.name" :placeholder="$t('milvus.resourceGroupNamePlaceholder')"></el-input>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="createDialog.visible = false">{{ $t('common.cancel') }}</el-button>
+            <el-button type="primary" @click="submitCreate" :loading="createLoading">{{ $t('common.confirm') }}</el-button>
+        </template>
+    </el-dialog>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted, watch } from 'vue';
+import { ElMessage, ElMessageBox, FormInstance } from 'element-plus';
+import { milvusApi } from '../api';
+import { Rules } from '@/common/rule';
+import { useI18n } from 'vue-i18n';
+import { useI18nConfirm } from '@/hooks/useI18n';
+import { useMilvusStore } from '@/views/ops/milvus/resource/store';
+import MonacoEditorBox from '@/components/monaco/MonacoEditorBox';
+
+const milvusStore = useMilvusStore();
+const { t } = useI18n();
+const props = defineProps<{
+    milvusId: number;
+}>();
+
+const list = ref<any[]>([]);
+const createDialog = ref({
+    visible: false,
+});
+const createFormRef = ref<FormInstance>();
+const loading = ref(false);
+const createLoading = ref(false);
+const createForm = ref({
+    name: '',
+});
+
+const createRules = {
+    name: [Rules.requiredInput('milvus.resourceGroupName')],
+};
+const detailData = ref<any>({});
+
+const loadList = async () => {
+    loading.value = true;
+    try {
+        const res = await milvusApi.listResourceGroups(props.milvusId);
+        list.value = (res || []).map((item: any) => ({ name: item }));
+    } finally {
+        loading.value = false;
+    }
+};
+
+const handleCreate = () => {
+    createForm.value = { name: '' };
+    createDialog.value.visible = true;
+};
+
+const submitCreate = async () => {
+    if (!createFormRef.value) return;
+
+    await createFormRef.value.validate(async (valid) => {
+        if (!valid) return;
+
+        createLoading.value = true;
+        try {
+            await milvusApi.createResourceGroup(props.milvusId, createForm.value);
+            ElMessage.success(t('milvus.createdSuccess'));
+            createDialog.value.visible = false;
+            loadList();
+        } finally {
+            createLoading.value = false;
+        }
+    });
+};
+
+const handleDescribe = async (row: any) => {
+    const res = await milvusApi.describeResourceGroup(props.milvusId, row.name);
+    MonacoEditorBox({
+        content: JSON.stringify(res, null, 2),
+        title: t('milvus.resourceGroup'),
+        language: 'json',
+        showConfirmButton: false,
+        canChangeLang: true,
+        closeFn: () => {},
+        useDrawer: true,
+        drawerSize: '50%',
+        options: {
+            readOnly: true,
+        },
+    });
+};
+
+const handleDrop = async (row: any) => {
+    await useI18nConfirm('milvus.confirmDeleteResourceGroup', { name: row.name });
+    await milvusApi.dropResourceGroup(props.milvusId, row.name);
+    ElMessage.success(t('milvus.deletedSuccess'));
+    await loadList();
+};
+
+onMounted(() => {
+    loadList();
+});
+watch(
+    () => props.milvusId,
+    () => {
+        list.value = [];
+        loadList();
+        milvusStore.clear();
+    }
+);
+</script>
+
+<style scoped></style>

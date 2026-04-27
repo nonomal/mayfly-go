@@ -39,7 +39,7 @@ const NodeTypeKafkaTag = new NodeType(TagTreeNode.TagPath).withLoadNodesFunc(asy
 });
 
 export default {
-    order: 6,
+    order: 6.1,
     resourceType: TagResourceTypeEnum.MqKafka.value,
     rootNodeType: NodeTypeKafkaTag,
     manager: {

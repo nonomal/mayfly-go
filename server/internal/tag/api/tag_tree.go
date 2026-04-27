@@ -185,6 +185,11 @@ func (p *TagTree) CountTagResource(rc *req.Ctx) {
 		CodePathLikes: collx.AsArray(tagPath),
 	}).GetCodes()
 
+	milvusCodes := p.tagTreeApp.GetAccountTags(accountId, &entity.TagTreeQuery{
+		Types:         collx.AsArray(entity.TagTypeMilvus),
+		CodePathLikes: collx.AsArray(tagPath),
+	}).GetCodes()
+
 	rc.ResData = collx.M{
 		"machine":   len(machineCodes),
 		"db":        len(dbCodes),
@@ -193,6 +198,7 @@ func (p *TagTree) CountTagResource(rc *req.Ctx) {
 		"mongo":     len(mongoCodes),
 		"container": len(containerCodes),
 		"kafka":     len(kafkaCodes),
+		"milvus":    len(milvusCodes),
 	}
 }
 

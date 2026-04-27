@@ -4,3 +4,4 @@ declare module 'asciinema-player';
 declare module 'vue-grid-layout';
 declare module 'uuid';
 declare module 'x-markdown-vue/style';
+declare module 'json-bigint';

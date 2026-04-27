@@ -25,6 +25,8 @@ export default {
             kafka: 'Kafka',
             kafkaOp: 'Kafka Operation',
         },
+        milvus: 'Milvus',
+        milvusOp: 'Milvus Operation',
     },
     team: {
         team: 'Team',

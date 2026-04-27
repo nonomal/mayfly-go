@@ -38,6 +38,7 @@ const (
 	TagTypeAuthCert   TagType = TagType(consts.ResourceTypeAuthCert) // 授权凭证类型
 	TagTypeContainer  TagType = TagType(consts.ResourceTypeContainer)
 	TagTypeMqKafka    TagType = TagType(consts.ResourceTypeMqKafka)
+	TagTypeMilvus     TagType = TagType(consts.ResourceTypeMilvus)
 
 	TagTypeDb TagType = 22 // 数据库名
 )

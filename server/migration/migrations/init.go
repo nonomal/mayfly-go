@@ -6,6 +6,7 @@ import (
 	fileentity "mayfly-go/internal/file/domain/entity"
 	flowentity "mayfly-go/internal/flow/domain/entity"
 	machineentity "mayfly-go/internal/machine/domain/entity"
+	milvusentity "mayfly-go/internal/milvus/domain/entity"
 	mongoentity "mayfly-go/internal/mongo/domain/entity"
 	msgentity "mayfly-go/internal/msg/domain/entity"
 	redisentity "mayfly-go/internal/redis/domain/entity"
@@ -67,6 +68,8 @@ func Init() []*gormigrate.Migration {
 					new(dbentity.DbTransferFile),
 
 					new(mongoentity.Mongo),
+
+					new(milvusentity.Milvus),
 
 					new(redisentity.Redis),
 				}

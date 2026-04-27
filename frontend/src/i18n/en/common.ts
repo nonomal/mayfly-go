@@ -5,6 +5,7 @@ export default {
         edit: 'Edit',
         delete: 'Delete',
         detail: 'Details',
+        apply: 'Apply',
         add: 'Add',
         save: 'Save',
         close: 'Close',
@@ -53,7 +54,9 @@ export default {
         previousStep: 'Previous Step',
         nextStep: 'Next Step',
         copy: 'Copy',
+        copySuccess: 'Copy Success',
         copyCell: 'Copy Cell',
+
         search: 'Search',
         pleaseInput: 'Please enter {label}',
         pleaseSelect: 'Please select {label}',
@@ -71,6 +74,7 @@ export default {
         selectAll: 'Select all',
         MultiPlaceholder: 'Multiple are separated by commas',
         appSlogan: 'Simple, efficient and secure',
+        preview: 'Preview',
     },
     layout: {
         user: {

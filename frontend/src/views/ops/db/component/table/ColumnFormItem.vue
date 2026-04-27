@@ -132,6 +132,7 @@ const openEditor = () => {
             closeEditorDialog();
         },
         closeFn: closeEditorDialog,
+        useDrawer: true,
     });
 };
 

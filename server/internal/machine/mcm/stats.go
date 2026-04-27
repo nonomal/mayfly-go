@@ -279,15 +279,18 @@ func getCPU(cpuInfo string, stats *Stats) (err error) {
 	us, _ := strconv.ParseFloat(strings.Split(strings.TrimSpace(values[0]), separator)[0], 32)
 	stats.CPU.User = float32(us)
 
-	sy, _ := strconv.ParseFloat(strings.Split(strings.TrimSpace(values[1]), separator)[0], 32)
-	stats.CPU.System = float32(sy)
-
-	id, _ := strconv.ParseFloat(strings.Split(strings.TrimSpace(values[3]), separator)[0], 32)
-	stats.CPU.Idle = float32(id)
-
-	wa, _ := strconv.ParseFloat(strings.Split(strings.TrimSpace(values[4]), separator)[0], 32)
-	stats.CPU.Iowait = float32(wa)
-
+	if len(values) > 1 {
+		sy, _ := strconv.ParseFloat(strings.Split(strings.TrimSpace(values[1]), separator)[0], 32)
+		stats.CPU.System = float32(sy)
+	}
+	if len(values) > 3 {
+		id, _ := strconv.ParseFloat(strings.Split(strings.TrimSpace(values[3]), separator)[0], 32)
+		stats.CPU.Idle = float32(id)
+	}
+	if len(values) > 4 {
+		wa, _ := strconv.ParseFloat(strings.Split(strings.TrimSpace(values[4]), separator)[0], 32)
+		stats.CPU.Iowait = float32(wa)
+	}
 	return nil
 }
 

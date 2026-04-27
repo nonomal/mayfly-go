@@ -58,6 +58,7 @@ class Api<T = any, P = any> {
     /**
      * fetch 请求对应的该api
      * @param {Object} param 请求该api的参数
+     * @param options options
      */
     async request(param?: P, options: any = {}): Promise<T> {
         const { execute, data } = this.useApi(param, options);

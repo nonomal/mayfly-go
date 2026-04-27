@@ -28,6 +28,8 @@ export default {
             kafka: 'Kafka',
             kafkaOp: 'Kafka操作',
         },
+        milvus: 'Milvus',
+        milvusOp: 'Milvus操作',
     },
     team: {
         team: '团队',

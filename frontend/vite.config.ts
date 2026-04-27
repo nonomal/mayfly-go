@@ -1,8 +1,11 @@
+// @ts-ignore
 import vue from '@vitejs/plugin-vue';
 import { resolve } from 'path';
 import { CodeInspectorPlugin } from 'code-inspector-plugin';
 import progress from 'vite-plugin-progress';
+// @ts-ignore
 import tailwindcss from '@tailwindcss/vite';
+// @ts-ignore
 import { ConfigEnv, defineConfig, loadEnv } from 'vite';
 
 export default defineConfig(({ mode }: ConfigEnv) => {
@@ -73,7 +76,7 @@ export default defineConfig(({ mode }: ConfigEnv) => {
                     {
                         postcssPlugin: 'internal:charset-removal',
                         AtRule: {
-                            charset: (atRule) => {
+                            charset: (atRule: { name: string; remove: () => void }) => {
                                 if (atRule.name === 'charset') {
                                     atRule.remove();
                                 }

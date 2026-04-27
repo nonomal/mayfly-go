@@ -11,6 +11,7 @@ const (
 	ResourceTypeEsInstance int8 = 6
 	ResourceTypeContainer  int8 = 7
 	ResourceTypeMqKafka    int8 = 8
+	ResourceTypeMilvus     int8 = 9
 
 	// imsg起始编号
 	ImsgNumSys     = 10000
@@ -25,4 +26,5 @@ const (
 	ImsgNumEs      = 100000
 	ImsgNumDocker  = 110000
 	ImsgNumMqKafka = 120000
+	ImsgNumMilvus  = 130000
 )

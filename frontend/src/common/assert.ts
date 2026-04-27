@@ -32,7 +32,7 @@ export function isTrue(condition: boolean, msgOrI18nKey: string) {
  * @param msg 错误消息
  */
 export function notBlank(obj: any, msg: string) {
-    if (obj == null || obj == undefined || obj == '') {
+    if (obj == null || obj == undefined || !obj) {
         throw new AssertError(msg);
     }
     if (Array.isArray(obj) && obj.length == 0) {

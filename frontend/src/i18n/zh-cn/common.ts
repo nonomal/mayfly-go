@@ -5,6 +5,7 @@ export default {
         edit: '编辑',
         delete: '删除',
         detail: '详情',
+        apply: '应用',
         add: '添加',
         save: '保存',
         close: '关闭',
@@ -53,6 +54,7 @@ export default {
         previousStep: '上一步',
         nextStep: '下一步',
         copy: '复制',
+        copySuccess: '复制成功',
         copyCell: '复制单元格',
         search: '搜索',
         pleaseInput: '请输入{label}',
@@ -71,6 +73,7 @@ export default {
         selectAll: '全选',
         MultiPlaceholder: '多个用逗号隔开',
         appSlogan: '简洁 · 高效 · 安全',
+        preview: '预览',
     },
     layout: {
         user: {

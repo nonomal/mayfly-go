@@ -18,6 +18,7 @@
 **/vendor/
 .idea
 .vscode
+.qoder
 out
 
 server/docs/docker-compose
@@ -26,3 +27,6 @@ server/ip2region.xdb
 mayfly-go.log
 
 mayfly-go-linux-amd64/
+
+.DS_Store
+__debug_*

@@ -225,13 +225,19 @@ export class TableColumn {
         let maxData;
         // 获取该列中最长的数据(内容)
         for (let i = 0; i < tableData.length; i++) {
-            let nowData = tableData[i];
-            let nowValue = getValueByPath(nowData, prop);
+            const nowData = tableData[i];
+            const nowValue = getValueByPath(nowData, prop);
             if (!nowValue) {
                 continue;
             }
             // 转为字符串比较长度
-            let nowText = nowValue + '';
+            let nowText;
+            if (typeof nowValue === 'object'){
+                nowText = JSON.stringify(nowValue);
+            }else{
+                nowText = nowValue + '';
+            }
+            console.log(nowText);
             if (nowText.length > maxWidthText.length) {
                 maxWidthText = nowText;
                 maxWidthValue = nowValue;

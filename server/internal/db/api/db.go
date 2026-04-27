@@ -240,8 +240,8 @@ func (d *Db) DumpSql(rc *req.Ctx) {
 		}
 	}()
 
-	gzipwriter := writerx.NewGzipWriter(rc.GetWriter())
-	defer gzipwriter.Close()
+	gzipWriter := writerx.NewGzipWriter(rc.GetWriter())
+	defer gzipWriter.Close()
 
 	biz.ErrIsNil(d.dbApp.DumpDb(rc.MetaCtx, &dto.DumpDb{
 		DbId:     dbId,
@@ -249,7 +249,7 @@ func (d *Db) DumpSql(rc *req.Ctx) {
 		Tables:   tables,
 		DumpDDL:  needStruct,
 		DumpData: needData,
-		Writer:   gzipwriter,
+		Writer:   gzipWriter,
 	}))
 
 	rc.ReqParam = collx.Kvs("db", dbConn.Info, "database", dbName, "tables", tablesStr, "dumpType", dumpType)

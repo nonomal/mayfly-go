@@ -1,0 +1,134 @@
+import Api from '@/common/Api';
+let db = '';
+export const milvusApi = {
+    // 实例管理
+    list: Api.newGet('/milvus'),
+    testConn: Api.newPost('/milvus/test-conn'),
+    save: Api.newPost('/milvus'),
+    delete: Api.newDelete(`/milvus/{id}`),
+
+    // 数据库操作
+    listDatabases: Api.newGet(`/milvus/{id}/databases`),
+    createDatabase: (milvusId: number, data: any) => Api.newPost(`/milvus/${milvusId}/databases`).request(data),
+    dropDatabase: (milvusId: number, database: string) => Api.newDelete(`/milvus/${milvusId}/databases/${database}`).request(),
+    describeDatabase: (milvusId: number, database: string) => Api.newGet(`/milvus/${milvusId}/databases/${database}/describe`).request(),
+    alterDatabase: (milvusId: number, database: string, data: any) => Api.newPost(`/milvus/${milvusId}/databases/${database}/properties`).request(data),
+    useDatabase: (milvusId: number, database: string) => {
+        db = database;
+        console.log(db);
+        // return Api.newPost(`/milvus/${milvusId}/databases/${database}/use`').request();
+    },
+    // Collection 操作
+    listCollections: (milvusId: number, dbName?: string) => {
+        return Api.newGet(`/milvus/${milvusId}/collections?db=${dbName || db}`).request();
+    },
+    createCollection: (milvusId: number, data: any) => Api.newPost(`/milvus/${milvusId}/collections?db=${db}`).request(data),
+    alterCollection: (milvusId: number, collection: string, data: any) => Api.newPost(`/milvus/${milvusId}/collections/${collection}/alter?db=${db}`).request(data),
+    dropCollection: (milvusId: number, collection: string) => Api.newDelete(`/milvus/${milvusId}/collections/${collection}?db=${db}`).request(),
+    describeCollection: (milvusId: number, collection: string) => Api.newGet(`/milvus/${milvusId}/collections/${collection}/describe?db=${db}`).request(),
+    getCollectionStatistics: (milvusId: number, collection: string) =>
+        Api.newGet(`/milvus/${milvusId}/collections/${collection}/statistics?db=${db}`).request(),
+    loadCollection: (milvusId: number, collection: string, options?: any) =>
+        Api.newPost(`/milvus/${milvusId}/collections/${collection}/load?db=${db}`).request({}, options),
+    releaseCollection: (milvusId: number, collection: string) => Api.newPost(`/milvus/${milvusId}/collections/${collection}/release?db=${db}`).request(),
+    hasCollection: (milvusId: number, collection: string) => Api.newGet(`/milvus/${milvusId}/collections/${collection}/has?db=${db}`).request(),
+    getLoadState: (milvusId: number, collection: string) => Api.newGet(`/milvus/${milvusId}/collections/${collection}/load-state?db=${db}`).request(),
+
+    // 别名操作
+    listAliases: (milvusId: number, collection: string) => Api.newGet(`/milvus/${milvusId}/collections/${collection}/aliases?db=${db}`).request(),
+    createAlias: (milvusId: number, collection: string, alias: string) => Api.newPost(`/milvus/${milvusId}/collections/${collection}/aliases?db=${db}`).request({ alias }),
+    dropAlias: (milvusId: number, alias: string) => Api.newDelete(`/milvus/${milvusId}/aliases/${alias}?db=${db}`).request(),
+
+    // 分区操作
+    listPartitions: (milvusId: number, collection: string) => Api.newGet(`/milvus/${milvusId}/collections/${collection}/partitions?db=${db}`).request(),
+    createPartition: (milvusId: number, collection: string, data: any) =>
+        Api.newPost(`/milvus/${milvusId}/collections/${collection}/partitions?db=${db}`).request(data),
+    dropPartition: (milvusId: number, collection: string, partition: string) =>
+        Api.newDelete(`/milvus/${milvusId}/collections/${collection}/partitions/${partition}?db=${db}`).request(),
+    hasPartition: (milvusId: number, collection: string, partition: string) =>
+        Api.newGet(`/milvus/${milvusId}/collections/${collection}/partitions/${partition}/has?db=${db}`).request(),
+    releasePartition: (milvusId: number, collection: string, partition: string) =>
+        Api.newGet(`/milvus/${milvusId}/collections/${collection}/partitions/release?db=${db}`).request({ partitionNames: [partition] }),
+
+    // 索引操作
+    createIndex: (milvusId: number, collection: string, field: string, data: any) =>
+        Api.newPost(`/milvus/${milvusId}/collections/${collection}/fields/${field}/index?db=${db}`).request(data),
+    describeIndex: (milvusId: number, collection: string, field: string) =>
+        Api.newGet(`/milvus/${milvusId}/collections/${collection}/fields/${field}/index?db=${db}`).request(),
+    dropIndex: (milvusId: number, collection: string, field: string) =>
+        Api.newDelete(`/milvus/${milvusId}/collections/${collection}/fields/${field}/index?db=${db}`).request(),
+
+    // 数据操作
+    insert: (milvusId: number, collection: string, data: any) => Api.newPost(`/milvus/${milvusId}/collections/${collection}/insert?db=${db}`).request(data),
+    deleteData: (milvusId: number, collection: string, data: any) => Api.newPost(`/milvus/${milvusId}/collections/${collection}/delete?db=${db}`).request(data),
+    query: (milvusId: number, collection: string, params: any) => Api.newPost(`/milvus/${milvusId}/collections/${collection}/query?db=${db}`).request(params),
+    search: (milvusId: number, collection: string, params: any) => Api.newPost(`/milvus/${milvusId}/collections/${collection}/search?db=${db}`).request(params),
+    generateMockData: (milvusId: number, collection: string, data: any) => Api.newPost(`/milvus/${milvusId}/collections/${collection}/generate-mock-data?db=${db}`).request(data),
+    insertSampleData: (milvusId: number, collection: string, data: any) => Api.newPost(`/milvus/${milvusId}/collections/${collection}/insert-sample-data?db=${db}`).request(data),
+    importFile: (milvusId: number, collection: string, formData: FormData) => Api.newPost(`/milvus/${milvusId}/collections/${collection}/import-file?db=${db}`).request(formData),
+
+    // 用户权限
+    listUsers: (milvusId: number) => Api.newGet(`/milvus/${milvusId}/users`).request(),
+    createUser: (milvusId: number, data: any) => Api.newPost(`/milvus/${milvusId}/users`).request(data),
+    deleteUser: (milvusId: number, username: string) => Api.newDelete(`/milvus/${milvusId}/users/${username}`).request(),
+    updatePassword: (milvusId: number, username: string, data: any) => Api.newPost(`/milvus/${milvusId}/users/${username}/password`).request(data),
+    grantRole: (milvusId: number, username: string, roleName: string) => Api.newPost(`/milvus/${milvusId}/users/${username}/grantRole`).request({ roleName }),
+    revokeRole: (milvusId: number, username: string, roleName: string) => Api.newPost(`/milvus/${milvusId}/users/${username}/revokeRole`).request({ roleName }),
+
+    // 角色管理
+    listRoles: (milvusId: number) => Api.newGet(`/milvus/${milvusId}/roles`).request(),
+    createRole: (milvusId: number, data: any) => Api.newPost(`/milvus/${milvusId}/roles`).request(data),
+    dropRole: (milvusId: number, role: string) => Api.newDelete(`/milvus/${milvusId}/roles/${role}`).request(),
+    describeRole: (milvusId: number, role: string) => Api.newGet(`/milvus/${milvusId}/roles/${role}`).request(),
+    updateRole: (milvusId: number, data: any) => Api.newPost(`/milvus/${milvusId}/roles`).request(data),
+    getPrivilegeGroups: (milvusId: number) => Api.newGet(`/milvus/${milvusId}/privilege-group`).request(),
+    savePrivilegeGroup: (milvusId: number, data: any) => Api.newPost(`/milvus/${milvusId}/privilege-group`).request(data),
+    dropPrivilegeGroup: (milvusId: number, name: string) => Api.newDelete(`/milvus/${milvusId}/privilege-group/${name}`).request(),
+
+    // 资源组
+    listResourceGroups: (milvusId: number) => Api.newGet(`/milvus/${milvusId}/resource-groups`).request(),
+    createResourceGroup: (milvusId: number, data: any) => Api.newPost(`/milvus/${milvusId}/resource-groups`).request(data),
+    dropResourceGroup: (milvusId: number, name: string) => Api.newDelete(`/milvus/${milvusId}/resource-groups/${name}`).request(),
+    describeResourceGroup: (milvusId: number, name: string) => Api.newGet(`/milvus/${milvusId}/resource-groups/${name}/describe`).request(),
+
+    // 系统信息
+    getVersion: (milvusId: number) => Api.newGet(`/milvus/${milvusId}/version`).request(),
+    checkHealth: (milvusId: number) => Api.newGet(`/milvus/${milvusId}/health`).request(),
+};
+
+export const timezones = [
+    { label: 'UTC - London, Dublin, Lisbon', value: 'UTC' },
+    { label: 'UTC+0/+1 - London (BST)', value: 'Europe/London' },
+    { label: 'UTC+1 - Paris, Berlin, Rome, Madrid, Amsterdam, Brussels', value: 'Europe/Paris' },
+    { label: 'UTC+2 - Athens, Cairo, Helsinki, Kyiv', value: 'Europe/Athens' },
+    { label: 'UTC+3 - Moscow, Istanbul, Nairobi, Riyadh', value: 'Europe/Moscow' },
+    { label: 'UTC+3 - Istanbul', value: 'Europe/Istanbul' },
+    { label: 'UTC+4 - Dubai, Abu Dhabi, Baku', value: 'Asia/Dubai' },
+    { label: 'UTC+5 - Karachi, Islamabad, Tashkent', value: 'Asia/Karachi' },
+    { label: 'UTC+5:30 - New Delhi, Mumbai, Chennai, Kolkata, Colombo', value: 'Asia/Kolkata' },
+    { label: 'UTC+6 - Dhaka, Almaty', value: 'Asia/Dhaka' },
+    { label: 'UTC+7 - Bangkok, Jakarta, Hanoi', value: 'Asia/Bangkok' },
+    { label: 'UTC+8 - Beijing, Shanghai, Singapore, Manila, Taipei, Hong Kong', value: 'Asia/Shanghai' },
+    { label: 'UTC+9 - Tokyo, Seoul, Pyongyang', value: 'Asia/Tokyo' },
+    { label: 'UTC+10 - Sydney, Melbourne, Guam', value: 'Australia/Sydney' },
+    { label: 'UTC+11 - Noumea, Solomon Islands', value: 'Pacific/Noumea' },
+    { label: 'UTC+12 - Auckland, Fiji, Marshall Islands', value: 'Pacific/Auckland' },
+    { label: 'UTC-1 - Azores, Cape Verde', value: 'Atlantic/Azores' },
+    { label: 'UTC-2 - South Georgia, South Sandwich Islands', value: 'Atlantic/South_Georgia' },
+    { label: 'UTC-3 - Buenos Aires, Brasilia, Montevideo', value: 'America/Buenos_Aires' },
+    { label: 'UTC-4 - Santiago, La Paz, Manaus', value: 'America/Santiago' },
+    { label: 'UTC-5 - New York, Bogota, Lima', value: 'America/New_York' },
+    { label: 'UTC-6 - Chicago, Mexico City, San Jose', value: 'America/Chicago' },
+    { label: 'UTC-7 - Denver, Phoenix, Chihuahua', value: 'America/Denver' },
+    { label: 'UTC-8 - Los Angeles, Tijuana, Vancouver', value: 'America/Los_Angeles' },
+    { label: 'UTC-9 - Anchorage, Juneau', value: 'America/Anchorage' },
+    { label: 'UTC-10 - Honolulu', value: 'Pacific/Honolulu' },
+];
+
+export const perms = {
+    base: 'milvus:base', // base
+    inst_save: 'milvus:save', // 保存实例
+    inst_del: 'milvus:del', // 删除实例
+    data_save: 'milvus:data:save', // 保存数据
+    data_del: 'milvus:data:del', // 删除数据
+};

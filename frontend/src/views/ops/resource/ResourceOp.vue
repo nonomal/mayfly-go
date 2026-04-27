@@ -19,6 +19,7 @@
                                         <el-dropdown-item
                                             :command="{ name }"
                                             v-for="(compConf, name) in resourceComponents"
+                                            :key="name"
                                             :disabled="name == activeResourceCompName"
                                         >
                                             <SvgIcon v-if="compConf.icon" :name="compConf.icon.name" :color="compConf.icon.color" />
@@ -49,7 +50,7 @@
                         >
                             <template #default="{ node, data }">
                                 <div v-if="data.type == TagResourceTypeEnum.Tag.value">
-                                    <span v-for="(value, i) in data.label.split('/')">
+                                    <span v-for="(value, i) in data.label.split('/')" :key="i">
                                         <el-text class="mr-[1.5px]! ml-[1.5px]!" v-if="i != 0" tag="b" type="primary" size="large">/</el-text>
                                         <el-text>{{ value }}</el-text>
                                     </span>
@@ -214,7 +215,7 @@ const loadNode = async (node: any, resolve: (data: any) => void, reject: () => v
     if (typeof resolve !== 'function') {
         return;
     }
-    let nodes = [];
+    let nodes;
     try {
         if (node.level == 0) {
             nodes = await loadTags();
