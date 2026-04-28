@@ -15,24 +15,19 @@ import (
 	"github.com/cloudwego/eino/components/model"
 )
 
-var (
-	// DefaultSessionStore 默认会话存储
-	DefaultSessionStore session.Store
-)
-
 // GetDefaultContextManager 获取默认的上下文管理器实例
 func GetDefaultContextManager() (*ContextManager, error) {
 	var sessionStore session.Store
 	var err error
 
-	if DefaultSessionStore != nil {
-		sessionStore = DefaultSessionStore
+	if session.DefaultSessionStore != nil {
+		sessionStore = session.DefaultSessionStore
 	} else {
 		sessionStore, err = session.NewStoreJSONL("./sessions")
 		if err != nil {
 			return nil, fmt.Errorf("create session store: %w", err)
 		}
-		DefaultSessionStore = sessionStore
+		session.DefaultSessionStore = sessionStore
 	}
 
 	chatModel, err := GetChatModel(context.Background())

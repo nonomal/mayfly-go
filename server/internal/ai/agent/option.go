@@ -57,12 +57,12 @@ type runOptions struct {
 	adkRunOptions []adk.AgentRunOption
 	sessionKey    string
 	userId        string
-	turnId        string                   // 一次完整回复id
-	resumeParams  []*tools.InterruptResume // 恢复参数
+	turnId        string // 一次完整回复id
+	resumeParams  []any  // 恢复参数（ApprovalResume 或 ParamCompletionResume）
 
 	// onChunk 流式内容块回调函数
 	// 当 Agent 产生增量输出（如 LLM 生成的每一个 Token 或片段）时触发。
-	// 适用于实现前端“打字机”效果，实时展示 AI 的思考或回复内容。
+	// 适用于实现前端"打字机"效果，实时展示 AI 的思考或回复内容。
 	// 参数 adk.Message 包含当前增量的 Content, ReasoningContent 或 ToolCalls 等信息。
 	onChunk func(context.Context, adk.Message) error // 流式输出回调函数
 
@@ -130,8 +130,8 @@ func WithTurnId(turnId string) RunOption {
 	}
 }
 
-// WithResumeParams
-func WithResumeParams(resumeParams ...*tools.InterruptResume) RunOption {
+// WithResumeParams 设置恢复参数（审批或参数补全）
+func WithResumeParams(resumeParams ...any) RunOption {
 	return func(opts *runOptions) {
 		opts.resumeParams = resumeParams
 	}

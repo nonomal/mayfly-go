@@ -24,8 +24,9 @@ export type InternalMessage = SessionMessage & {
 export interface InterruptActionEvent {
     turnId: string; // 轮次Id
     interruptId: string; // 中断ID
-    action: string; // 操作（如 'approve', 'reject', 'confirm', 'verify' 等）
-    payload?: any; // 操作携带的额外数据（如选择的选项值、输入的验证码等）
+    interruptType: string; // 中断类型（如 'APPROVAL', 'PARAM_COMPLETION' 等）
+    action: string; // 操作（如 'approve', 'reject', 'complete', 'cancel' 等）
+    payload?: any; // 操作携带的额外数据
 }
 
 /**

@@ -15,6 +15,7 @@ import (
 	"mayfly-go/pkg/utils/anyx"
 	"mayfly-go/pkg/utils/collx"
 	"mayfly-go/pkg/utils/jsonx"
+	"mayfly-go/pkg/utils/stringx"
 	"mayfly-go/pkg/validatorx"
 	"mayfly-go/pkg/ws"
 	"time"
@@ -77,6 +78,7 @@ func (a *Ai) ChatMessages(rc *req.Ctx) {
 			Time:             *msg.CreateTime,
 			Role:             msg.Role,
 			ActionId:         msg.ActionId,
+			ToolCallId:       msg.ToolCallId,
 			Extra:            msg.Extra,
 		}
 		if msg.ToolCalls != "" {
@@ -121,6 +123,10 @@ func (a *Ai) Chat(rc *req.Ctx) {
 		if messageType == websocket.TextMessage {
 			chatMsg, err := jsonx.To[form.ChatMsg](message)
 			biz.ErrIsNilAppendErr(err, "parse chat message error: %s")
+			biz.ErrIsNil(validatorx.Validate(chatMsg))
+			if chatMsg.SessionId == "" || chatMsg.SessionId == "-1" {
+				chatMsg.SessionId = stringx.RandUUID()
+			}
 
 			var userMessage []adk.Message
 			agentRunOptions := []agent.RunOption{
@@ -153,6 +159,7 @@ func (a *Ai) Chat(rc *req.Ctx) {
 							Content:          m.Content,
 							ReasoningContent: m.ReasoningContent,
 							ToolCalls:        m.ToolCalls,
+							ToolCallId:       m.ToolCallID,
 							ActionId:         agent.GetActionId(m),
 							Extra:            m.Extra,
 						}
@@ -163,12 +170,16 @@ func (a *Ai) Chat(rc *req.Ctx) {
 			}
 
 			if chatMsg.Type == form.ChatMsgTypeInterruptResume {
-				ir, err := jsonx.ToByStr[tools.InterruptResume](chatMsg.Content)
+				resumeList, err := jsonx.ToByStr[[]tools.InterruptResume](chatMsg.Content)
 				biz.ErrIsNil(err)
-				biz.ErrIsNil(validatorx.Validate(ir))
+				resumeParams := make([]any, len(*resumeList))
+				for i := range *resumeList {
+					biz.ErrIsNil(validatorx.Validate(&(*resumeList)[i]))
+					resumeParams[i] = &(*resumeList)[i]
+				}
 				agentRunOptions = append(agentRunOptions,
-					agent.WithResumeParams(ir),
-					agent.WithTurnId(ir.TurnId),
+					agent.WithResumeParams(resumeParams...),
+					agent.WithTurnId((*resumeList)[0].TurnId),
 				)
 			} else {
 				userMessage = collx.AsArray(schema.UserMessage(chatMsg.Content))

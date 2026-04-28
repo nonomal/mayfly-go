@@ -10,11 +10,5 @@ const (
 type ChatMsg struct {
 	SessionId string      `json:"sessionId"`
 	Type      ChatMsgType `json:"type"`
-	Content   string      `json:"content"`
-}
-
-type InterruptResume struct {
-	InterruptId string `json:"interruptId"`
-	Action      string `json:"action"`
-	Payload     any    `json:"payload"`
+	Content   string      `json:"content" binding:"required"`
 }

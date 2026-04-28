@@ -69,7 +69,6 @@ func newAgent(ctx context.Context, factory agentFactory, opts ...option) (*Agent
 		maxStep:     20,
 		tools:       tools.DefaultRegistry,
 		middlewares: []adk.ChatModelAgentMiddleware{
-			&middleware.ApprovalMiddleware{},
 			&middleware.SafeToolMiddleware{},
 		},
 	}
@@ -126,6 +125,12 @@ func (a *Agent) Run(ctx context.Context, messages []adk.Message, runOpts ...RunO
 	runOptions := newRunOptions(ctx, runOpts...)
 	if runOptions.sessionKey != "" {
 		ctx = session.WithSessionKey(ctx, runOptions.sessionKey)
+		ctx = session.WithTurn(ctx, runOptions.turnId)
+	}
+	if len(messages) > 0 {
+		for _, inputMsg := range messages {
+			SetTurnId(inputMsg, runOptions.turnId)
+		}
 	}
 
 	checkPointStore := GetDefaultCheckPointStore()
@@ -158,20 +163,27 @@ func (a *Agent) Run(ctx context.Context, messages []adk.Message, runOpts ...RunO
 	if runOptions.resumeParams != nil {
 		resumePrams := runOptions.resumeParams
 		targets := map[string]any{}
+
+		var resumeMsgs []adk.Message
 		for _, v := range resumePrams {
+			data, ok := v.(*tools.InterruptResume)
+			if !ok {
+				continue
+			}
+			interruptId := data.InterruptId
+
 			// key -> interruptId  value -> InterruptResume
-			targets[v.InterruptId] = v
+			targets[interruptId] = data.ToTarget()
 
 			// 中断恢复消息
 			internalResumeMessage := &schema.Message{
 				Role: RoleInternal,
 			}
-			extra := NewInternalMessageExtra(InternalMessageTypeResume, v)
+			extra := NewInternalMessageExtra(InternalMessageTypeResume, data)
 			internalResumeMessage.Extra = extra
 			SetTurnId(internalResumeMessage, runOptions.turnId)
-			SetActionId(internalResumeMessage, v.InterruptId)
-
-			outputMessages = append(outputMessages, internalResumeMessage)
+			SetActionId(internalResumeMessage, interruptId)
+			resumeMsgs = append(resumeMsgs, internalResumeMessage)
 		}
 
 		events, err = runner.ResumeWithParams(ctx, runOptions.turnId, &adk.ResumeParams{
@@ -182,8 +194,8 @@ func (a *Agent) Run(ctx context.Context, messages []adk.Message, runOpts ...RunO
 		}
 
 		// 事件处理
-		for _, msg := range outputMessages {
-			runOptions.CallOnEvent(ctx, nil, msg)
+		for _, resumeMsg := range resumeMsgs {
+			runOptions.CallOnEvent(ctx, nil, resumeMsg)
 		}
 		checkPointStore.Delete(ctx, runOptions.turnId)
 	} else {
@@ -203,11 +215,11 @@ func (a *Agent) Run(ctx context.Context, messages []adk.Message, runOpts ...RunO
 		if toolErr, ok := errors.AsType[*tools.ToolError](err); ok {
 			// 工具调用失败，并且没有重试，则记录对应错误消息
 			toolErrMsg := &schema.Message{
-				Role:     schema.Tool,
-				Content:  tools.GetToolErrorMsg(err),
-				ToolName: toolErr.ToolName,
+				Role:       schema.Tool,
+				Content:    tools.GetToolErrorMsg(err),
+				ToolName:   toolErr.ToolName,
+				ToolCallID: toolErr.ToolCallId,
 			}
-			SetActionId(toolErrMsg, toolErr.ToolCallId)
 			SetTurnId(toolErrMsg, runOptions.turnId)
 			SetToolStatus(toolErrMsg, tools.ToolStatusError)
 
@@ -304,9 +316,6 @@ func (a *Agent) handleEvents(ctx context.Context, events *adk.AsyncIterator[*adk
 		if msg == nil {
 			continue
 		}
-		if msg.Role == schema.Tool {
-			SetActionId(msg, msg.ToolCallID)
-		}
 		SetTurnId(msg, runOptions.turnId)
 
 		outputMessages = append(outputMessages, msg)
@@ -333,13 +342,16 @@ func (a *Agent) handleInterrupt(interruptInfo *adk.InterruptInfo) ([]adk.Message
 		if !ok {
 			continue
 		}
-		extra := NewInternalMessageExtra(InternalMessageTypeInterrupt, info)
-		extra.Set("toolCallId", info.GetToolCallId())
+
+		interruptType := info.GetType()
+		toolCallId := info.GetToolCallId()
+
+		extra := NewInternalMessageExtra(string(interruptType), info)
 		internalMsg := &schema.Message{
 			Role:       RoleInternal,
 			Content:    info.GetDescription(),
 			ToolName:   info.GetToolInfo().Name,
-			ToolCallID: info.GetToolCallId(),
+			ToolCallID: toolCallId,
 			Extra:      extra,
 		}
 		SetActionId(internalMsg, ic.ID)

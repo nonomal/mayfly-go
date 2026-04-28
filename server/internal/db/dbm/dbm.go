@@ -2,6 +2,7 @@ package dbm
 
 import (
 	"context"
+	_ "mayfly-go/internal/db/dbm/clickhouse"
 	"mayfly-go/internal/db/dbm/dbi"
 	_ "mayfly-go/internal/db/dbm/dm"
 	_ "mayfly-go/internal/db/dbm/mssql"

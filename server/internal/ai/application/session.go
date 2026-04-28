@@ -1,7 +1,6 @@
 package application
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"mayfly-go/internal/ai/agent"
@@ -10,12 +9,11 @@ import (
 	"mayfly-go/internal/ai/domain/repository"
 	"mayfly-go/internal/ai/session"
 	"mayfly-go/pkg/base"
+	"mayfly-go/pkg/errorx"
 	"mayfly-go/pkg/model"
 	"mayfly-go/pkg/utils/collx"
 	"mayfly-go/pkg/utils/jsonx"
-	"mayfly-go/pkg/utils/stringx"
 
-	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
 )
 
@@ -52,35 +50,52 @@ func (s *sessionAppImpl) ListSessionMessages(ctx context.Context, query *dto.Ses
 	return s.sessionMessageRepo.SelectByCond(cond)
 }
 
+// GetMessage 根据查询条件获取单条消息
+func (s *sessionAppImpl) GetMessage(ctx context.Context, query *session.MessageQuery) ([]*session.Message, error) {
+	msgs, err := s.sessionMessageRepo.SelectByCond(model.NewCond().
+		Eq("msgType", query.MessageType).
+		Eq("actionId", query.ActionId).
+		Eq("turnId", query.TurnId).
+		Eq("toolCallId", query.ToolCallId).
+		OrderByDesc("id"),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if len(msgs) == 0 {
+		return nil, errorx.NewBiz("no message")
+	}
+
+	return collx.ArrayMap(msgs, func(sm *entity.SessionMessage) *session.Message {
+		return toSessionMessage(sm)
+	}), nil
+}
+
+// UpdateMessage 更新单条消息
+func (s *sessionAppImpl) UpdateMessage(ctx context.Context, msg *session.Message) error {
+	if msg.Id == 0 {
+		return nil
+	}
+
+	em := toEntityMessage("", msg)
+	return s.sessionMessageRepo.Save(ctx, em)
+}
+
 // AppendMsgs 追加消息到会话历史
-func (s *sessionAppImpl) AppendMsgs(ctx context.Context, sessionKey string, msgs ...adk.Message) error {
+func (s *sessionAppImpl) AppendMsgs(ctx context.Context, sessionKey string, msgs ...*session.Message) error {
 	if len(msgs) == 0 {
 		return nil
 	}
 
-	messages := collx.ArrayMap(msgs, func(msg adk.Message) *entity.SessionMessage {
-		sm := &entity.SessionMessage{
-			SessionKey: sessionKey,
-			TurnId:     cmp.Or(agent.GetTurnId(msg), stringx.RandUUID()),
-			Role:       string(msg.Role),
-			Content:    msg.Content,
-			ToolCalls:  jsonx.ToStr(msg.ToolCalls),
-			ActionId:   agent.GetActionId(msg),
-		}
-		extra := collx.M(msg.Extra)
-		if msg.Role == schema.Tool {
-			extra.Set("toolName", msg.ToolName)
-		}
-		extra.Delete("reasoning-content") // 思考内容可能很多
-		sm.Extra = extra
-		return sm
+	sessionMessages := collx.ArrayMap(msgs, func(msg *session.Message) *entity.SessionMessage {
+		return toEntityMessage(sessionKey, msg)
 	})
 
-	return s.sessionMessageRepo.BatchInsert(ctx, messages)
+	return s.sessionMessageRepo.BatchInsert(ctx, sessionMessages)
 }
 
 // GetHistory 获取会话历史消息
-func (s *sessionAppImpl) GetHistory(ctx context.Context, sessionKey string, limit int) ([]adk.Message, error) {
+func (s *sessionAppImpl) GetHistory(ctx context.Context, sessionKey string, limit int) ([]*session.Message, error) {
 	if limit <= 0 {
 		limit = 1000
 	}
@@ -88,19 +103,8 @@ func (s *sessionAppImpl) GetHistory(ctx context.Context, sessionKey string, limi
 	if err != nil {
 		return nil, err
 	}
-	return collx.ArrayMap(messages, func(msg *entity.SessionMessage) adk.Message {
-		sm := &schema.Message{
-			Role:    schema.RoleType(msg.Role),
-			Content: msg.Content,
-		}
-		if msg.Role == string(schema.Tool) {
-			sm.ToolCallID = msg.ActionId
-		}
-		if msg.ToolCalls != "" {
-			tollcalls, _ := jsonx.ToByStr[[]schema.ToolCall](msg.ToolCalls)
-			sm.ToolCalls = *tollcalls
-		}
-		return sm
+	return collx.ArrayMap(messages, func(msg *entity.SessionMessage) *session.Message {
+		return toSessionMessage(msg)
 	}), nil
 }
 
@@ -158,4 +162,74 @@ func (s *sessionAppImpl) SaveMeta(ctx context.Context, meta *session.SessionMeta
 // DeleteMeta 删除会话元信息
 func (s *sessionAppImpl) DeleteMeta(ctx context.Context, sessionKey string) error {
 	return s.DeleteByCond(ctx, &entity.Session{SessionKey: sessionKey})
+}
+
+// toEntityMessage 将 session.Message 转换为 entity.SessionMessage
+func toEntityMessage(sessionKey string, msg *session.Message) *entity.SessionMessage {
+	// 根据角色和 toolcalls 判断消息类型
+	msgType := getMessageType(msg)
+
+	sm := &entity.SessionMessage{
+		SessionKey: sessionKey,
+		TurnId:     msg.TurnId,
+		Role:       string(msg.Role),
+		MsgType:    msgType,
+		Content:    msg.Content,
+		ToolCalls:  jsonx.ToStr(msg.ToolCalls),
+		ToolCallId: msg.ToolCallId,
+		ActionId:   msg.ActionId,
+	}
+	sm.Id = uint64(msg.Id)
+	extra := collx.M(msg.Extra)
+	if msg.Role == schema.Tool {
+		extra.Set("toolName", msg.ToolName)
+	}
+	sm.Extra = extra
+	return sm
+}
+
+// toSessionMessage 将 entity.SessionMessage 转换为 session.Message
+func toSessionMessage(msg *entity.SessionMessage) *session.Message {
+	sm := &session.Message{
+		Id:         int64(msg.Id),
+		Role:       schema.RoleType(msg.Role),
+		Content:    msg.Content,
+		ToolCalls:  nil,
+		ToolCallId: msg.ToolCallId,
+		ActionId:   msg.ActionId,
+		MsgType:    msg.MsgType,
+	}
+	if msg.ToolCalls != "" {
+		tollcalls, _ := jsonx.ToByStr[[]schema.ToolCall](msg.ToolCalls)
+		if tollcalls != nil {
+			sm.ToolCalls = *tollcalls
+		}
+	}
+	if msg.Extra != nil {
+		sm.Extra = msg.Extra
+	}
+	return sm
+}
+
+// getMessageType 根据 session.Message 判断消息类型
+func getMessageType(msg *session.Message) string {
+	switch msg.Role {
+	case schema.User:
+		return entity.MsgTypeUser
+	case schema.Tool:
+		return entity.MsgTypeToolResult
+	case agent.RoleInternal:
+		if mt := msg.Extra.GetStr("type"); mt != "" {
+			return mt
+		}
+		return entity.MsgTypeInternal
+	case schema.Assistant:
+		// assistant 带 tool_calls 为工具调用，否则为普通回复
+		if len(msg.ToolCalls) > 0 {
+			return entity.MsgTypeToolCall
+		}
+		return entity.MsgTypeAssistant
+	default:
+		return entity.MsgTypeAssistant
+	}
 }

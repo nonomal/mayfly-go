@@ -4,7 +4,7 @@
             <!-- 左侧会话列表 -->
             <aside class="flex flex-col border-r transition-all duration-300 ease-in-out" style="border-color: var(--el-border-color-light, #e4e7ed)">
                 <Conversations
-                    v-model:active="currentSessionId"
+                    :active="currentSessionId"
                     :items="conversations"
                     @change="onChangeSession"
                     :label-max-width="200"
@@ -49,7 +49,7 @@
 
             <!-- 右侧聊天区域 -->
             <main class="ml-3 flex-1 flex flex-col bg-linear-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-900">
-                <AiChat v-if="currentSessionId" :session-id="currentSessionId" :is-new-session="isNewSession" @activate="loadSessions" />
+                <AiChat v-if="currentSessionId" :session-id="currentSessionId" @activate="onSessionCreated" />
                 <div v-else class="flex-1 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 space-y-4">
                     <div class="text-6xl opacity-20">💬</div>
                     <p class="text-lg font-medium">{{ t('ai.assistant.startNewConversation') }}</p>
@@ -81,10 +81,8 @@ const themeConfig = useThemeConfig();
 const isDark = computed(() => themeConfig.themeConfig.isDark);
 
 const conversations = ref<ConversationItem[]>([]);
-// 当前会话id
+// 当前会话id（'-1' 表示新建会话）
 const currentSessionId = ref<string>('');
-// 是否是新会话
-const isNewSession = ref(false);
 
 /**
  * 加载会话列表
@@ -106,17 +104,20 @@ const loadSessions = async () => {
 };
 
 const onChangeSession = (item: ConversationItem) => {
-    isNewSession.value = false;
     switchSession(item.key);
 };
 
 const createNewSession = async () => {
-    currentSessionId.value = randomUuid();
-    isNewSession.value = true;
+    currentSessionId.value = '-1';
 };
 
 const switchSession = (sessionId: string) => {
     currentSessionId.value = sessionId;
+};
+
+const onSessionCreated = async (sessionId: string) => {
+    currentSessionId.value = sessionId;
+    await loadSessions();
 };
 
 const deleteSession = async (sessionKey: string) => {

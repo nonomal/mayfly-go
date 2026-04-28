@@ -5,18 +5,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"log"
 	"mayfly-go/pkg/logx"
+	"mayfly-go/pkg/utils/collx"
 	"mayfly-go/pkg/utils/filex"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/cloudwego/eino/adk"
 )
 
 const (
@@ -121,17 +121,17 @@ func (s *JSONLStore) writeMeta(key string, meta SessionMeta) error {
 // the first `skip` lines without unmarshaling them. This avoids the
 // cost of json.Unmarshal on logically truncated messages.
 // Malformed trailing lines (e.g. from a crash) are silently skipped.
-func readMessages(path string, skip int) ([]adk.Message, error) {
+func readMessages(path string, skip int) ([]*Message, error) {
 	f, err := os.Open(path)
 	if os.IsNotExist(err) {
-		return []adk.Message{}, nil
+		return []*Message{}, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("jsonl: open jsonl: %w", err)
 	}
 	defer f.Close()
 
-	var msgs []adk.Message
+	var msgs []*Message
 	scanner := bufio.NewScanner(f)
 	// Allow large lines for tool results (read_file, web search, etc.).
 	scanner.Buffer(make([]byte, 0, 64*1024), maxLineSize)
@@ -146,7 +146,7 @@ func readMessages(path string, skip int) ([]adk.Message, error) {
 		if lineNum <= skip {
 			continue
 		}
-		var msg adk.Message
+		var msg Message
 		if err := json.Unmarshal(line, &msg); err != nil {
 			// Corrupt line — likely a partial write from a crash.
 			// Log so operators know data was skipped, but don't
@@ -156,14 +156,14 @@ func readMessages(path string, skip int) ([]adk.Message, error) {
 				lineNum, filepath.Base(path), err)
 			continue
 		}
-		msgs = append(msgs, msg)
+		msgs = append(msgs, &msg)
 	}
 	if scanner.Err() != nil {
 		return nil, fmt.Errorf("jsonl: scan jsonl: %w", scanner.Err())
 	}
 
 	if msgs == nil {
-		msgs = []adk.Message{}
+		msgs = []*Message{}
 	}
 	return msgs, nil
 }
@@ -193,7 +193,7 @@ func countLines(path string) (int, error) {
 }
 
 func (s *JSONLStore) AppendMsgs(
-	_ context.Context, sessionKey string, msgs ...adk.Message) error {
+	_ context.Context, sessionKey string, msgs ...*Message) error {
 	return s.addMsg(sessionKey, msgs...)
 }
 
@@ -201,7 +201,7 @@ func (s *JSONLStore) AppendMsgs(
 // Using batch writes reduces disk I/O overhead compared to writing each message individually.
 // Note: This method only appends messages to storage, it does NOT update metadata.
 // Metadata updates should be handled by the Manager layer.
-func (s *JSONLStore) addMsg(sessionKey string, msgs ...adk.Message) error {
+func (s *JSONLStore) addMsg(sessionKey string, msgs ...*Message) error {
 	l := s.sessionLock(sessionKey)
 	l.Lock()
 	defer l.Unlock()
@@ -256,7 +256,7 @@ func (s *JSONLStore) addMsg(sessionKey string, msgs ...adk.Message) error {
 
 func (s *JSONLStore) GetHistory(
 	_ context.Context, sessionKey string, limit int,
-) ([]adk.Message, error) {
+) ([]*Message, error) {
 	l := s.sessionLock(sessionKey)
 	l.Lock()
 	defer l.Unlock()
@@ -281,6 +281,38 @@ func (s *JSONLStore) GetHistory(
 	}
 
 	return msgs, nil
+}
+
+// GetMessage 根据查询条件获取单条消息
+func (s *JSONLStore) GetMessage(ctx context.Context, query *MessageQuery) ([]*Message, error) {
+	msgs, err := s.GetHistory(ctx, "", 0)
+	if err != nil {
+		return nil, err
+	}
+
+	return collx.ArrayFilter(msgs, func(m *Message) bool {
+		if query.ToolCallId != "" && m.ToolCallId == query.ToolCallId {
+			return true
+		}
+		if query.MessageType != "" {
+			if m, ok := m.Extra["msgType"]; ok && m == query.MessageType {
+				return true
+			}
+		}
+		return false
+	}), nil
+}
+
+// UpdateMessage 更新单条消息
+func (s *JSONLStore) UpdateMessage(ctx context.Context, msg *Message) error {
+	if msg == nil {
+		return nil
+	}
+	// JSONL 是追加写的，需要读取所有消息，找到对应的消息，更新后重写整个文件
+	// 这里需要根据 ActionId 查找对应的消息
+	// 由于 JSONL 不支持直接更新，需要完整的 sessionKey 才能操作
+	// 这里返回不支持的错误
+	return errors.New("JSONLStore does not support UpdateMessage, use sessionKey-based operations")
 }
 
 // ClearHistory 清空会话历史消息（保留元数据）
@@ -383,7 +415,7 @@ func (s *JSONLStore) TruncateHistory(
 func (s *JSONLStore) SetHistory(
 	_ context.Context,
 	sessionKey string,
-	history []adk.Message,
+	history []*Message,
 ) error {
 	l := s.sessionLock(sessionKey)
 	l.Lock()
@@ -461,7 +493,7 @@ func (s *JSONLStore) Compact(
 // rewriteJSONL atomically replaces the JSONL file with the given messages
 // using the project's standard WriteFileAtomic (temp + fsync + rename).
 func (s *JSONLStore) rewriteJSONL(
-	sessionKey string, msgs []adk.Message,
+	sessionKey string, msgs []*Message,
 ) error {
 	var buf bytes.Buffer
 	for i, msg := range msgs {

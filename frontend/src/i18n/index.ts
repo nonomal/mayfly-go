@@ -4,16 +4,10 @@
  * 注意国际化定义的字段，不要与原有的定义字段相同。
  * /src/i18n/(zh-cn、en...)/module.ts 下的 ts 为各模块国际化内容。
  */
+import { getThemeConfig } from '@/common/utils/storage';
 import { createI18n } from 'vue-i18n';
-import { storeToRefs } from 'pinia';
-import { useThemeConfig } from '@/store/themeConfig';
-import pinia from '@/store';
-import { I18nEnum } from '@/common/commonEnum';
 
 const modules: Record<string, any> = import.meta.glob('./**/*.ts', { eager: true });
-
-// 读取 pinia 默认语言
-const { themeConfig } = storeToRefs(useThemeConfig(pinia));
 
 function initI18n() {
     // 定义变量内容
@@ -39,6 +33,9 @@ function initI18n() {
         messages[key] = Object.assign({}, ...value);
     });
 
+    const themeConfig = getThemeConfig();
+    const globalI18n = themeConfig.globalI18n || "zh-cn";
+
     // https://vue-i18n.intlify.dev/guide/essentials/fallback.html#explicit-fallback-with-one-locale
     return createI18n({
         legacy: false,
@@ -47,8 +44,8 @@ function initI18n() {
         missingWarn: false,
         silentFallbackWarn: true,
         fallbackWarn: false,
-        locale: themeConfig.value.globalI18n,
-        fallbackLocale: I18nEnum.ZhCn.value,
+        locale: globalI18n,
+        fallbackLocale: "zh-cn",
         messages,
     });
 }

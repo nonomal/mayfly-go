@@ -1,11 +1,8 @@
-// @ts-ignore
 import vue from '@vitejs/plugin-vue';
 import { resolve } from 'path';
 import { CodeInspectorPlugin } from 'code-inspector-plugin';
 import progress from 'vite-plugin-progress';
-// @ts-ignore
 import tailwindcss from '@tailwindcss/vite';
-// @ts-ignore
 import { ConfigEnv, defineConfig, loadEnv } from 'vite';
 
 export default defineConfig(({ mode }: ConfigEnv) => {
@@ -48,6 +45,7 @@ export default defineConfig(({ mode }: ConfigEnv) => {
         },
         build: {
             outDir: 'dist',
+            sourcemap: false,
             chunkSizeWarningLimit: 1500,
             rolldownOptions: {
                 output: {
@@ -57,7 +55,7 @@ export default defineConfig(({ mode }: ConfigEnv) => {
                     hashCharacters: 'hex',
                     advancedChunks: {
                         groups: [
-                            { name: 'vue-vendor', test: /[\\/]node_modules[\\/](vue|@vue|vue-router|pinia)[\\/]/ },
+                            { name: 'vue-vendor', test: /[\\/]node_modules[\\/](vue|@vue|vue-router|pinia|vue-i18n|@intlify)[\\/]/ },
                             { name: 'charts', test: /[\\/]node_modules[\\/](echarts)[\\/]/ },
                             { name: 'monaco', test: /[\\/]node_modules[\\/]monaco-editor[\\/]/ },
                         ],

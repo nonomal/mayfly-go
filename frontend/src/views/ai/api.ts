@@ -24,6 +24,7 @@ export interface SessionMessage {
     time?: any;
     reasoningContent?: string;
     toolCalls?: ToolCall[];
+    toolCallId?: string;
     actionId?: string;
     extra?: any;
 }

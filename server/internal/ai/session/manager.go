@@ -26,9 +26,11 @@ type Manager struct {
 // NewManager 创建会话管理器
 // store: 底层存储实现 (如 JSONLStore, MemoryStore 等)
 func NewManager(store Store) *Manager {
-	return &Manager{
+	m := &Manager{
 		store: store,
 	}
+
+	return m
 }
 
 // WithSummaryConfig 设置摘要配置（选项模式）
@@ -40,6 +42,7 @@ func (m *Manager) WithSummaryConfig(config *SummaryConfig) *Manager {
 }
 
 // GetHistory 获取会话历史消息（Manager 层处理 Skip 优化和摘要组装）
+// 注意：返回 schema.Message 切片，因为上层（如 adk）需要 schema.Message 格式
 func (m *Manager) GetHistory(ctx context.Context, key string, opts ...GetOption) ([]adk.Message, error) {
 	// 应用选项配置
 	options := defaultGetOptions()
@@ -52,7 +55,11 @@ func (m *Manager) GetHistory(ctx context.Context, key string, opts ...GetOption)
 	if err != nil {
 		logx.WarnfContext(ctx, "get meta error in GetHistory: %v", err)
 		// 如果获取元数据失败，直接返回 Store 的历史消息
-		return m.store.GetHistory(ctx, key, options.messageLimit)
+		sessionMsgs, err := m.store.GetHistory(ctx, key, options.messageLimit)
+		if err != nil {
+			return nil, err
+		}
+		return ToAdkMessages(sessionMsgs), nil
 	}
 
 	// 计算 Store 层实际需要读取的消息数量
@@ -83,17 +90,20 @@ func (m *Manager) GetHistory(ctx context.Context, key string, opts ...GetOption)
 	}
 
 	// 从 Store 获取历史消息（返回最后 storeLimit 条，即所有未摘要的消息）
-	messages, err := m.store.GetHistory(ctx, key, storeLimit)
+	sessionMsgs, err := m.store.GetHistory(ctx, key, storeLimit)
 	if err != nil {
 		return nil, err
 	}
 
 	// 从所有未摘要的消息中，取最新的 messageLimit 条
-	if options.messageLimit > 0 && len(messages) > options.messageLimit {
-		messages = messages[len(messages)-options.messageLimit:]
+	if options.messageLimit > 0 && len(sessionMsgs) > options.messageLimit {
+		sessionMsgs = sessionMsgs[len(sessionMsgs)-options.messageLimit:]
 		logx.DebugfContext(ctx, "trimmed to latest %d messages from %d unsummarized messages",
-			options.messageLimit, len(messages)+options.messageLimit)
+			options.messageLimit, len(sessionMsgs)+options.messageLimit)
 	}
+
+	// 转换为 schema.Message
+	messages := ToAdkMessages(sessionMsgs)
 
 	// 如果存在摘要，将其作为系统消息前置
 	if meta != nil && meta.Summary != "" {
@@ -114,8 +124,11 @@ func (m *Manager) AppendMsgs(ctx context.Context, key string, msgs ...adk.Messag
 		return nil
 	}
 
+	// 转换为 Message
+	sessionMsgs := FromAdkMessages(msgs)
+
 	// 追加消息到底层存储（Store 只负责存储，不更新元数据）
-	if err := m.store.AppendMsgs(ctx, key, msgs...); err != nil {
+	if err := m.store.AppendMsgs(ctx, key, sessionMsgs...); err != nil {
 		return err
 	}
 
@@ -322,8 +335,8 @@ func (m *Manager) summarizeSession(ctx context.Context, sessionKey string, meta 
 		logx.DebugfContext(ctx, "prepended old summary to context")
 	}
 
-	// 追加所有未摘要的原始消息
-	fullContext = append(fullContext, rawMessages...)
+	// 追加所有未摘要的原始消息（转换为 schema.Message）
+	fullContext = append(fullContext, ToAdkMessages(rawMessages)...)
 
 	logx.DebugfContext(ctx, "full context for summarization: %d messages (1 system + %d raw)",
 		len(fullContext), len(rawMessages))

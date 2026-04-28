@@ -2,19 +2,22 @@ package dbtool
 
 import (
 	"context"
+	"fmt"
 
+	"mayfly-go/internal/ai/imsg"
 	"mayfly-go/internal/ai/tools"
 	"mayfly-go/internal/db/application"
 	"mayfly-go/internal/db/dbm/dbi"
+	"mayfly-go/pkg/i18n"
 
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
 )
 
 type QueryDataParam struct {
-	DbId   uint64 `json:"dbId" jsonschema_description:"数据库ID"`
-	DbName string `json:"dbName" jsonschema_description:"数据库名称"`
-	SQL    string `json:"sql" jsonschema_description:"SQL语句"`
+	DbId   int64  `json:"dbId" jsonschema_description:"数据库ID。如果用户未明确提供，请传0，不要猜测！"`
+	DbName string `json:"dbName" jsonschema_description:"数据库名称。如果用户未明确提供，请留空，不要猜测！"`
+	SQL    string `json:"sql" jsonschema_description:"SQL语句" jsonschema:"required" `
 }
 
 type QueryDataOutput struct {
@@ -24,9 +27,24 @@ type QueryDataOutput struct {
 
 func GetQueryData() (tool.InvokableTool, error) {
 	return utils.InferTool("DbQueryData",
-		"【数据库】SQL查询 - 执行只读类 SQL 语句（如 SELECT、SHOW、DESC、EXPLAIN 等）。适用于查询表数据、分析执行计划等场景。注意：仅限查询操作，禁止执行 INSERT、UPDATE、DELETE 等变更类 SQL。",
+		i18n.T(imsg.DbQueryDataToolInfo),
 		func(ctx context.Context, param *QueryDataParam) (*QueryDataOutput, error) {
-			conn, err := application.GetDbApp().GetDbConn(ctx, param.DbId, param.DbName)
+			toolDesc := i18n.TC(ctx, imsg.DbQueryDataToolDesc)
+			// 检查必要参数，触发参数完善
+			if param.DbId == 0 || param.DbName == "" {
+				if err := tools.InterruptOrResumeParamCompletion(ctx, toolDesc, param, i18n.TC(ctx, imsg.DbInfoIncomplete), "db", []tools.CompletionParamInfo{
+					{Param: "dbId", Name: "数据库ID", Cacheable: true},
+					{Param: "dbName", Name: "数据库名称", Cacheable: true},
+				}); err != nil {
+					return nil, err
+				}
+			}
+
+			if param.SQL == "" {
+				return nil, fmt.Errorf("sql parameter is required")
+			}
+
+			conn, err := application.GetDbApp().GetDbConn(ctx, uint64(param.DbId), param.DbName)
 			if err != nil {
 				return nil, tools.NewToolError(err, tools.RecoverRetry)
 			}

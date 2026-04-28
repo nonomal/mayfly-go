@@ -2,18 +2,17 @@ import type { Component } from 'vue';
 import ApprovalInterrupt from './ApprovalInterrupt.vue';
 import ConfirmationInterrupt from './ConfirmationInterrupt.vue';
 import GenericInterrupt from './GenericInterrupt.vue';
+import ParamCompletionInterrupt from './param-completion/index.vue';
 
 /**
  * 中断组件类型映射表
- * key: interrupt type (如 'APPROVAL', 'CONFIRMATION' 等)
+ * key: interrupt type (如 'interrupt_approval', 'interrupt_confirmation' 等)
  * value: 对应的 Vue 组件
  */
 const interruptComponentMap = new Map<string, Component>([
-    ['APPROVAL', ApprovalInterrupt],
-    ['CONFIRMATION', ConfirmationInterrupt],
-    // 在这里注册更多类型的中断组件
-    // ['VERIFICATION', VerificationInterrupt],
-    // ['CUSTOM_TYPE', CustomInterruptComponent],
+    ['interrupt_approval', ApprovalInterrupt],
+    ['interrupt_confirmation', ConfirmationInterrupt],
+    ['interrupt_param_completion', ParamCompletionInterrupt],
 ]);
 
 /**
@@ -30,7 +29,7 @@ const DEFAULT_INTERRUPT_COMPONENT = GenericInterrupt;
  * registerInterruptComponent('CUSTOM_TYPE', CustomInterruptComponent)
  */
 export function registerInterruptComponent(type: string, component: Component) {
-    interruptComponentMap.set(type.toUpperCase(), component);
+    interruptComponentMap.set(type.toLowerCase(), component);
     console.log(`已注册中断组件类型: ${type}`);
 }
 
@@ -47,7 +46,7 @@ export function getInterruptComponent(type?: string): Component {
         return DEFAULT_INTERRUPT_COMPONENT;
     }
 
-    const component = interruptComponentMap.get(type.toUpperCase());
+    const component = interruptComponentMap.get(type.toLowerCase());
     return component || DEFAULT_INTERRUPT_COMPONENT;
 }
 
@@ -65,11 +64,11 @@ export function getRegisteredInterruptTypes(): string[] {
  * @returns 是否已注册
  */
 export function isInterruptTypeRegistered(type: string): boolean {
-    return interruptComponentMap.has(type.toUpperCase());
+    return interruptComponentMap.has(type.toLowerCase());
 }
 
 // 导出组件以便直接使用
-export { ApprovalInterrupt, ConfirmationInterrupt, GenericInterrupt };
+export { ApprovalInterrupt, ParamCompletionInterrupt, ConfirmationInterrupt, GenericInterrupt };
 
 // 导出类型定义
 export type { InterruptActionEvent } from './types';

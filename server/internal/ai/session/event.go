@@ -10,6 +10,10 @@ const (
 	// EventTopicSummarized 会话完成自动摘要后触发
 	// 事件值类型为 *SummarizedEvent
 	EventTopicSummarized = "session:summarized"
+
+	// EventTopicInterruptResume 中断恢复时触发
+	// 事件值类型为 *tools.InterruptResume
+	EventTopicInterruptResume = "session:interrupt-resume"
 )
 
 // SummarizedEvent 会话摘要完成事件

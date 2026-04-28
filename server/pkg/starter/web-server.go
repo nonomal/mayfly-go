@@ -31,7 +31,8 @@ func runWebServer(ctx context.Context, serverConfig ServerConf, options *Options
 	i18n.SetLang(serverConfig.Lang)
 
 	var router = gin.New()
-	router.MaxMultipartMemory = 8 << 20
+	// 最大请求体大小限制 100M
+	router.MaxMultipartMemory = 100 << 20
 	// 初始化接口路由
 	initRouter(router, req.RouterConfig{ContextPath: serverConfig.ContextPath})
 	// 设置静态资源

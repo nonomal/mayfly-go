@@ -17,5 +17,6 @@ type ChatMsg struct {
 	ReasoningContent string            `json:"reasoningContent,omitempty"`
 	ToolCalls        []schema.ToolCall `json:"toolCalls,omitempty"`
 	ActionId         string            `json:"actionId,omitempty"`
+	ToolCallId       string            `json:"toolCallId,omitempty"`
 	Extra            collx.M           `json:"extra,omitempty"`
 }

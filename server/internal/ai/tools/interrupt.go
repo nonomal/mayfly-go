@@ -1,18 +1,30 @@
 package tools
 
-import "github.com/cloudwego/eino/schema"
+import (
+	"context"
+	"mayfly-go/internal/ai/session"
+	"mayfly-go/pkg/logx"
+	"mayfly-go/pkg/utils/collx"
+)
 
 // InterruptType 定义中断类型
 type InterruptType string
 
 const (
-	TypeApproval InterruptType = "APPROVAL" // 人工审批
+	InterruptTypeApproval        InterruptType = "interrupt_approval"         // 人工审批
+	InterruptTypeParamCompletion InterruptType = "interrupt_param_completion" // 参数补全
 )
 
 type ToolInfo struct {
 	Name       string `json:"name"`
 	Desc       string `json:"desc"`
 	JsonSchema string `json:"jsonSchema"`
+}
+
+type InterruptState struct {
+	Name       string `json:"name"`
+	ToolCallId string `json:"toolCallId"`
+	Args       string `json:"args"`
 }
 
 // InterruptMetadata 定义中断元数据接口
@@ -84,13 +96,54 @@ func (b *BaseInterruptInfo) GetToolCallId() string {
 	return b.ToolCallId
 }
 
-type InterruptResume struct {
-	TurnId      string `json:"turnId" binding:"required"`
-	InterruptId string `json:"interruptId" binding:"required"` // 中断id
-	Action      string `json:"action" binding:"required"`      // 操作
-	Payload     any    `json:"payload"`                        // 操作参数
+// ApprovalResume 审批恢复参数
+type ApprovalResume struct {
+	*InterruptResume
 }
 
-func init() {
-	schema.Register[*InterruptResume]()
+// ParamCompletionResume 参数补全恢复参数
+type ParamCompletionResume struct {
+	*InterruptResume
+}
+
+// InterruptResume 中断恢复的信息
+type InterruptResume struct {
+	TurnId        string        `json:"turnId" binding:"required"`
+	InterruptId   string        `json:"interruptId" binding:"required"`   // 中断id
+	InterruptType InterruptType `json:"interruptType" binding:"required"` // 中断类型
+	Action        string        `json:"action" binding:"required"`        // 操作
+	Payload       collx.M       `json:"payload"`                          // 操作参数
+}
+
+// ToTarget 将 InterruptResume 转换为具体的恢复参数结构体（如 ApprovalResume 或 ParamCompletionResume）
+func (i *InterruptResume) ToTarget() any {
+	switch i.InterruptType {
+	case InterruptTypeApproval:
+		return &ApprovalResume{
+			InterruptResume: i,
+		}
+	case InterruptTypeParamCompletion:
+		return &ParamCompletionResume{
+			InterruptResume: i,
+		}
+	default:
+		return i
+	}
+}
+
+func AppendResumeInfo(ctx context.Context, interruptId string, resumeInfo any) *session.Message {
+	msgQuery := &session.MessageQuery{
+		ActionId: interruptId,
+	}
+
+	msgs, err := session.DefaultSessionStore.GetMessage(ctx, msgQuery)
+	if err != nil || len(msgs) == 0 {
+		logx.InfofContext(ctx, "not found interrupt message")
+		return nil
+	}
+	msg := msgs[0]
+
+	msg.Extra.Set("resumeInfo", resumeInfo)
+	session.DefaultSessionStore.UpdateMessage(ctx, msg)
+	return msg
 }

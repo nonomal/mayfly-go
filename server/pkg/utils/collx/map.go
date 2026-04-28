@@ -3,6 +3,7 @@ package collx
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 	"mayfly-go/pkg/utils/anyx"
 	"sync"
 
@@ -50,6 +51,28 @@ func (m M) GetFloat64(key string) float64 {
 
 func (m M) GetBool(key string) bool {
 	return cast.ToBool(m[key])
+}
+
+func (m M) GetM(key string) M {
+	if m[key] == nil {
+		return M{}
+	}
+	if v, ok := m[key].(map[string]any); ok {
+		return M(v)
+	}
+	return M{}
+}
+
+// Unmarshal 将key对应的值反序列化到target中，target必须是指针类型
+func (m M) Unmarshal(key string, target any) error {
+	if m[key] == nil {
+		return fmt.Errorf("not found key: %s", key)
+	}
+	val, err := json.Marshal(m[key])
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(val, target)
 }
 
 func (m M) Delete(key string) M {

@@ -11,7 +11,6 @@ import (
 func V1_11() []*gormigrate.Migration {
 	var migrations []*gormigrate.Migration
 	migrations = append(migrations, V1_11_0()...)
-	migrations = append(migrations, V1_11_1()...)
 	return migrations
 }
 
@@ -34,14 +33,8 @@ func V1_11_0() []*gormigrate.Migration {
 				return nil
 			},
 		},
-	}
-}
-
-func V1_11_1() []*gormigrate.Migration {
-	return []*gormigrate.Migration{
 		{
-			ID: "20260420-v1.11.1_milvus",
-
+			ID: "20260420-v1.11.0_milvus",
 			Migrate: func(tx *gorm.DB) error {
 				tx.AutoMigrate(&milvusentity.Milvus{})
 

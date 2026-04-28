@@ -1,82 +1,57 @@
 <template>
-    <el-card class="approval-interrupt">
-        <template #header>
-            <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <el-tag type="warning" size="small">{{ t('ai.interrupt.approval.title') }}</el-tag>
-                    <span class="font-medium">{{ interruptData?.title }}</span>
-                </div>
-                <enum-tag v-if="isProcessed" :enums="InterruptAction" :value="currentAction" />
-                <el-tag v-else type="warning" size="small">
-                    {{ t('ai.interrupt.approval.pendingApproval') }}
-                </el-tag>
+    <div class="approval-interrupt border border-gray-200 dark:border-gray-700 rounded flex flex-col">
+        <!-- 紧凑头部 -->
+        <div class="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
+            <div class="flex items-center gap-2">
+                <el-tag type="warning" size="small">{{ t('ai.interrupt.approval.title') }}</el-tag>
+                <span class="text-sm font-medium">{{ interruptData?.title }}</span>
             </div>
-        </template>
+            <enum-tag v-if="isProcessed" :enums="InterruptAction" :value="currentAction" />
+            <el-tag v-else-if="hasPending" type="info" size="small">{{ t('ai.interrupt.approval.pendingSubmit') }}</el-tag>
+            <el-tag v-else type="warning" size="small">{{ t('ai.interrupt.approval.pendingApproval') }}</el-tag>
+        </div>
 
-        <div class="space-y-3">
+        <div class="px-3 py-2 space-y-2 flex-1">
             <!-- 描述信息 -->
-            <div class="text-sm text-gray-600 dark:text-gray-400">
-                {{ interruptData?.description }}
+            <div v-if="interruptData?.description" class="text-xs text-gray-500 dark:text-gray-400">
+                {{ interruptData.description }}
             </div>
 
-            <!-- 工具信息 -->
-            <div v-if="interruptData?.toolInfo" class="bg-gray-50 dark:bg-gray-800 rounded p-3">
-                <div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">{{ t('ai.interrupt.approval.toolInfo') }}</div>
-                <div class="space-y-2 text-sm">
-                    <div class="flex items-start gap-2">
-                        <span class="text-gray-500 dark:text-gray-400 shrink-0">{{ t('ai.interrupt.approval.name') }}:</span>
-                        <span class="font-mono text-blue-600 dark:text-blue-400">{{ interruptData.toolInfo.name }}</span>
-                    </div>
-                    <div v-if="interruptData.toolInfo.desc" class="flex items-start gap-2">
-                        <span class="text-gray-500 dark:text-gray-400 shrink-0">{{ t('ai.interrupt.approval.description') }}:</span>
-                        <span class="text-gray-700 dark:text-gray-300 flex-1">{{ interruptData.toolInfo.desc }}</span>
-                    </div>
+            <!-- 工具名一行带过 -->
+            <div v-if="interruptData?.toolInfo" class="text-xs text-gray-500 dark:text-gray-400">
+                <span>{{ t('ai.interrupt.approval.toolName') }}:</span>
+                <span class="font-mono text-blue-600 dark:text-blue-400 ml-1">{{ interruptData.toolInfo.name }}</span>
+            </div>
+
+            <!-- 执行参数：固定高度常驻显示 -->
+            <div v-if="interruptData?.arguments" class="text-xs">
+                <div class="text-gray-400 text-xs mb-1">{{ t('ai.interrupt.approval.executionParams') }}</div>
+                <div class="h-25 overflow-y-auto">
+                    <pre class="p-1.5 bg-white dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700 overflow-x-auto text-xs">{{
+                        formatJson(interruptData.arguments)
+                    }}</pre>
                 </div>
             </div>
 
-            <!-- 参数信息 -->
-            <div v-if="interruptData?.arguments" class="bg-gray-50 dark:bg-gray-800 rounded p-3">
-                <div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">{{ t('ai.interrupt.approval.executionParams') }}</div>
-                <pre class="text-xs overflow-x-auto bg-white dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700">
-                    {{ formatJson(interruptData.arguments) }}
-                </pre>
-            </div>
-
-            <!-- 中断ID -->
-            <div v-if="interruptId" class="text-xs text-gray-400 dark:text-gray-500">
-                <span class="font-medium">{{ t('ai.interrupt.approval.interruptId') }}:</span>
-                <span class="font-mono">{{ interruptId }}</span>
+            <!-- 待提交状态 -->
+            <div v-if="hasPending && !isProcessed" class="flex items-center gap-2 text-xs text-yellow-600 dark:text-yellow-400">
+                <span>{{ t('ai.interrupt.approval.selected') }}</span>
+                <enum-tag :enums="InterruptAction" :value="pendingResumeInfo.action" />
             </div>
 
             <!-- 操作结果记录 -->
-            <div v-if="resumeInfo" class="bg-blue-50 dark:bg-blue-900/20 rounded p-3 border border-blue-200 dark:border-blue-800">
-                <div class="text-xs font-medium text-blue-600 dark:text-blue-400 mb-2">{{ t('ai.interrupt.approval.operationRecord') }}</div>
-                <div class="space-y-2 text-sm">
-                    <div class="flex items-start gap-2">
-                        <span class="text-gray-500 dark:text-gray-400 shrink-0">{{ t('ai.interrupt.approval.operationType') }}:</span>
-                        <enum-tag v-if="isProcessed" :enums="InterruptAction" :value="resumeInfo.action" />
-                    </div>
-                    <div v-if="resumeInfo.timestamp" class="flex items-start gap-2">
-                        <span class="text-gray-500 dark:text-gray-400 shrink-0">{{ t('ai.interrupt.approval.operationTime') }}:</span>
-                        <span class="text-gray-700 dark:text-gray-300">{{ formatDate(resumeInfo.timestamp) }}</span>
-                    </div>
-                    <div v-if="resumeInfo.payload" class="flex items-start gap-2">
-                        <span class="text-gray-500 dark:text-gray-400 shrink-0">{{ t('ai.interrupt.approval.additionalData') }}:</span>
-                        <pre class="text-xs overflow-x-auto bg-white dark:bg-gray-900 p-2 rounded border border-gray-200 dark:border-gray-700 flex-1">{{
-                            formatJson(resumeInfo.payload)
-                        }}</pre>
-                    </div>
-                </div>
+            <div v-if="resumeInfo" class="flex items-center gap-2 text-xs">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('ai.interrupt.approval.operationType') }}:</span>
+                <enum-tag :enums="InterruptAction" :value="resumeInfo.action" />
             </div>
         </div>
 
-        <template #footer v-if="!readonly && !isProcessed">
-            <div class="flex justify-end gap-2">
-                <el-button size="small" @click="handleApprove">{{ t('ai.interrupt.approval.approve') }}</el-button>
-                <el-button size="small" type="danger" @click="handleReject">{{ t('ai.interrupt.approval.reject') }}</el-button>
-            </div>
-        </template>
-    </el-card>
+        <!-- 操作按钮 -->
+        <div v-if="!readonly && !isProcessed && !hasPending" class="flex justify-end gap-2 px-3 py-2 border-t border-gray-100 dark:border-gray-800">
+            <el-button size="small" @click="handleApprove">{{ t('ai.interrupt.approval.approve') }}</el-button>
+            <el-button size="small" type="danger" @click="handleReject">{{ t('ai.interrupt.approval.reject') }}</el-button>
+        </div>
+    </div>
 </template>
 
 <script setup lang="ts">
@@ -86,7 +61,7 @@
  */
 
 import EnumValue from '@/common/Enum';
-import { formatDate, formatJson } from '@/common/utils/format';
+import { formatJson } from '@/common/utils/format';
 import EnumTag from '@/components/enumtag/EnumTag.vue';
 import { ElMessageBox } from 'element-plus';
 import { computed } from 'vue';
@@ -109,12 +84,15 @@ const emit = defineEmits<{
 const { t } = useI18n();
 
 // 从 data 中提取常用字段
-const interruptId = computed(() => props.data.actionId);
-const turnId = computed(() => props.data.turnId);
+const interruptId = computed(() => props.data.actionId || props.data.extra?.actionId || '');
+const turnId = computed(() => props.data.turnId || props.data.extra?.turnId || '');
 const interruptData = computed(() => props.data.extra?.content);
 const resumeInfo = computed(() => props.data.extra?.resumeInfo);
-const currentAction = computed(() => resumeInfo.value?.action);
-const isProcessed = computed(() => !!currentAction.value);
+const pendingResumeInfo = computed(() => props.data.extra?.pendingResumeInfo);
+const currentAction = computed(() => resumeInfo.value?.action || pendingResumeInfo.value?.action);
+const isProcessed = computed(() => !!resumeInfo.value);
+const hasPending = computed(() => !!pendingResumeInfo.value);
+const interruptType = computed(() => props.data.extra?.type || '');
 
 const InterruptAction = {
     Approve: EnumValue.of('approve', 'ai.interrupt.action.approve').tagTypeSuccess(),
@@ -162,6 +140,7 @@ const handleAction = (action: string, payload?: any) => {
     emit('action', {
         turnId: turnId.value || '',
         interruptId: interruptId.value || '',
+        interruptType: interruptType.value || '',
         action,
         payload,
     });

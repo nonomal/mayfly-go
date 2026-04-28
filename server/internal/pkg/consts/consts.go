@@ -27,4 +27,5 @@ const (
 	ImsgNumDocker  = 110000
 	ImsgNumMqKafka = 120000
 	ImsgNumMilvus  = 130000
+	ImsgNumAi      = 140000
 )
