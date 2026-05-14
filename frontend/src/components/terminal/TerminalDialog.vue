@@ -78,6 +78,10 @@
                         :ref="(el) => setTerminalRef(el, openTerminal.terminalId)"
                         :cmd="openTerminal.cmd"
                         :socket-url="openTerminal.socketUrl"
+                        :machine-id="openTerminal.meta?.id || 0"
+                        :auth-cert-name="openTerminal.meta?.selectAuthCert?.name || ''"
+                        :file-id="0"
+                        :protocol="openTerminal.meta?.protocol || 1"
                     />
                 </div>
             </el-dialog>

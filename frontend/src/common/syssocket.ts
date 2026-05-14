@@ -6,6 +6,16 @@ import { MsgSubtypeEnum } from './commonEnum';
 import EnumValue from './Enum';
 import { h } from 'vue';
 import { MessageRenderer } from '@/components/message/message';
+import { initMachineSysMsgs } from '@/components/sysmsg/machine';
+import { initDbSysMsgs } from '@/components/sysmsg/db';
+
+/**
+ * 初始化全局系统消息
+ */
+export function initSysMsgs() {
+    initMachineSysMsgs();
+    initDbSysMsgs();
+}
 
 class SysSocket {
     /**

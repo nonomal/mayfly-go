@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
@@ -15,6 +16,7 @@ import (
 	msgdto "mayfly-go/internal/msg/application/dto"
 	"mayfly-go/internal/pkg/event"
 	"mayfly-go/pkg/biz"
+	"mayfly-go/pkg/contextx"
 	"mayfly-go/pkg/global"
 	"mayfly-go/pkg/gox"
 	"mayfly-go/pkg/logx"
@@ -28,6 +30,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/pkg/sftp"
 	"github.com/spf13/cast"
@@ -82,6 +85,32 @@ const (
 	link          = "l"
 	max_read_size = 1 * 1024 * 1024
 )
+
+// progressReader 用于 HTTP 上传时推送进度
+type progressReader struct {
+	reader     io.Reader
+	total      int64
+	readSize   int64
+	uploadId   string
+	filename   string
+	path       string
+	ctx        context.Context
+	startTime  time.Time
+	onProgress func(readSize int64) // 进度回调函数
+}
+
+func (r *progressReader) Read(p []byte) (n int, err error) {
+	n, err = r.reader.Read(p)
+	if n > 0 {
+		r.readSize += int64(n)
+
+		// 如果有回调函数，调用它
+		if r.onProgress != nil {
+			r.onProgress(r.readSize)
+		}
+	}
+	return n, err
+}
 
 func (m *MachineFile) MachineFiles(rc *req.Ctx) {
 	condition := &entity.MachineFile{MachineId: GetMachineId(rc)}
@@ -250,6 +279,7 @@ func (m *MachineFile) UploadFile(rc *req.Ctx) {
 	protocol := cast.ToInt(rc.PostForm("protocol"))
 	machineId := cast.ToUint64(rc.PostForm("machineId"))
 	authCertName := rc.PostForm("authCertName")
+	uploadId := rc.PostForm("uploadId") // 前端传递的 uploadId
 
 	fileheader, err := rc.FormFile("file")
 	biz.ErrIsNilAppendErr(err, "read form file error: %s")
@@ -262,6 +292,41 @@ func (m *MachineFile) UploadFile(rc *req.Ctx) {
 	file, _ := fileheader.Open()
 	defer file.Close()
 
+	// 是否需要推送进度通知
+	hasProgressNotify := uploadId != ""
+
+	startTime := time.Now()
+	var mi *mcm.MachineInfo
+
+	var reader io.Reader = file
+	if hasProgressNotify {
+		// 创建带进度回调的 Reader
+		reader = &progressReader{
+			reader:    file,
+			total:     fileheader.Size,
+			uploadId:  uploadId,
+			filename:  fileheader.Filename,
+			path:      path,
+			ctx:       ctx,
+			startTime: startTime,
+			onProgress: func(readSize int64) {
+				progressMsgEvent := &msgdto.MsgTmplSendEvent{
+					TmplChannel: msgdto.MsgTmplMachineFileUploadProgress,
+					Params: collx.M{
+						"uploadId":     uploadId,
+						"filename":     fileheader.Filename,
+						"uploadedSize": readSize,
+						"totalSize":    fileheader.Size,
+						"status":       "uploading",
+						"timestamp":    time.Now().UnixMilli(),
+					},
+					ReceiverIds: []uint64{contextx.GetLoginAccount(ctx).Id},
+				}
+				global.EventBus.Publish(ctx, event.EventTopicMsgTmplSend, progressMsgEvent)
+			},
+		}
+	}
+
 	opForm := &dto.MachineFileOp{
 		MachineId:    machineId,
 		AuthCertName: authCertName,
@@ -269,8 +334,21 @@ func (m *MachineFile) UploadFile(rc *req.Ctx) {
 		Path:         path,
 	}
 
-	mi, err := m.machineFileApp.UploadFile(ctx, opForm, fileheader.Filename, file)
+	mi, err = m.machineFileApp.UploadFile(ctx, opForm, fileheader.Filename, reader)
 	rc.ReqParam = collx.Kvs("machine", mi, "path", fmt.Sprintf("%s/%s", path, fileheader.Filename))
+
+	// 发送完成通知
+	if hasProgressNotify && err == nil {
+		progressMsgEvent := &msgdto.MsgTmplSendEvent{
+			TmplChannel: msgdto.MsgTmplMachineFileUploadProgress,
+			Params: collx.M{
+				"uploadId": uploadId,
+				"status":   "complete",
+			},
+			ReceiverIds: []uint64{contextx.GetLoginAccount(ctx).Id},
+		}
+		global.EventBus.Publish(ctx, event.EventTopicMsgTmplSend, progressMsgEvent)
+	}
 
 	// 发送文件上传结果消息
 	msgEvent := &msgdto.MsgTmplSendEvent{
@@ -307,19 +385,19 @@ func (m *MachineFile) UploadFolder(rc *req.Ctx) {
 
 	fileheaders := mf.File["files"]
 	biz.IsTrue(len(fileheaders) > 0, "files cannot be empty")
-	allFileSize := collx.ArrayReduce(fileheaders, 0, func(i int64, fh *multipart.FileHeader) int64 {
+	totalSize := collx.ArrayReduce(fileheaders, 0, func(i int64, fh *multipart.FileHeader) int64 {
 		return i + fh.Size
 	})
 
 	ctx := rc.MetaCtx
 	maxUploadFileSize := config.GetMachine().UploadMaxFileSize
-	biz.IsTrueI(ctx, allFileSize <= maxUploadFileSize, imsg.ErrUploadFileOutOfLimit, "size", maxUploadFileSize)
+	biz.IsTrueI(ctx, totalSize <= maxUploadFileSize, imsg.ErrUploadFileOutOfLimit, "size", maxUploadFileSize)
 
 	paths := mf.Value["paths"]
 	authCertName := mf.Value["authCertName"][0]
 	machineId := cast.ToUint64(mf.Value["machineId"][0])
-	// protocol
 	protocol := cast.ToInt(mf.Value["protocol"][0])
+	uploadId := mf.Value["uploadId"][0] // 前端传递的 uploadId
 
 	opForm := &dto.MachineFileOp{
 		MachineId:    machineId,
@@ -327,82 +405,236 @@ func (m *MachineFile) UploadFolder(rc *req.Ctx) {
 		AuthCertName: authCertName,
 	}
 
-	if protocol == entity.MachineProtocolRdp {
-		m.machineFileApp.UploadFiles(ctx, opForm, basePath, fileheaders, paths)
-		return
-	}
-
 	folderName := filepath.Dir(paths[0])
-	mcli, err := m.machineFileApp.GetMachineCli(rc.MetaCtx, authCertName)
-	biz.ErrIsNil(err)
+	totalFiles := len(fileheaders)
+	uploadedFiles := 0
 
-	mi := mcli.Info
+	// 是否需要推送进度通知
+	hasProgressNotify := uploadId != ""
 
-	sftpCli, err := mcli.GetSftpCli()
-	biz.ErrIsNil(err)
-	rc.ReqParam = collx.Kvs("machine", mi, "path", fmt.Sprintf("%s/%s", basePath, folderName))
-
-	folderFiles := make([]FolderFile, len(paths))
-	// 先创建目录，并将其包装为folderFile结构
-	mkdirs := make(map[string]bool, 0)
-	for i, path := range paths {
-		dir := filepath.Dir(path)
-		// 目录已建，则无需重复建
-		if !mkdirs[dir] {
-			biz.ErrIsNilAppendErr(sftpCli.MkdirAll(basePath+"/"+dir), "create dir error: %s")
-			mkdirs[dir] = true
+	// 发送开始通知
+	if hasProgressNotify {
+		startMsgEvent := &msgdto.MsgTmplSendEvent{
+			TmplChannel: msgdto.MsgTmplMachineFolderUploadProgress,
+			Params: collx.M{
+				"uploadId":      uploadId,
+				"folderName":    folderName,
+				"totalFiles":    totalFiles,
+				"uploadedFiles": 0,
+				"totalSize":     totalSize,
+				"uploadedSize":  0,
+				"percent":       0,
+				"status":        "uploading",
+			},
+			ReceiverIds: []uint64{contextx.GetLoginAccount(ctx).Id},
 		}
-		folderFiles[i] = FolderFile{
-			Dir:        dir,
-			Fileheader: fileheaders[i],
-		}
+		global.EventBus.Publish(ctx, event.EventTopicMsgTmplSend, startMsgEvent)
 	}
 
-	msgEvent := &msgdto.MsgTmplSendEvent{
-		TmplChannel: msgdto.MsgTmplMachineFileUploadSuccess,
-		Params: collx.M{
-			"filename":    folderName,
-			"path":        basePath,
-			"machineName": mi.Name,
-			"machineCode": mi.Code,
-		},
-		ReceiverIds: []uint64{rc.GetLoginAccount().Id},
-	}
+	if protocol == entity.MachineProtocolRdp {
+		// RDP 协议上传
+		m.machineFileApp.UploadFiles(ctx, opForm, basePath, fileheaders, paths)
+		uploadedFiles = totalFiles
+	} else {
+		// SSH 协议上传
+		mcli, err := m.machineFileApp.GetMachineCli(rc.MetaCtx, authCertName)
+		biz.ErrIsNil(err)
 
-	// 分组处理
-	groupNum := 30
-	chunks := collx.ArraySplit(folderFiles, groupNum)
+		mi := mcli.Info
+		sftpCli, err := mcli.GetSftpCli()
+		biz.ErrIsNil(err)
+		rc.ReqParam = collx.Kvs("machine", mi, "path", fmt.Sprintf("%s/%s", basePath, folderName))
 
-	var wg sync.WaitGroup
-	isSuccess := true
-	for _, chunk := range chunks {
-		wg.Go(func() {
-			defer gox.Recover(func(e error) {
-				isSuccess = false
-				msgEvent.TmplChannel = msgdto.MsgTmplMachineFileUploadFail
-				msgEvent.Params["error"] = e.Error()
-				global.EventBus.Publish(ctx, event.EventTopicMsgTmplSend, msgEvent)
-			})
-
-			for _, file := range chunk {
-				fileHeader := file.Fileheader
-				dir := file.Dir
-				file, _ := fileHeader.Open()
-				defer file.Close()
-
-				logx.Debugf("upload folder: dir=%s -> filename=%s", dir, fileHeader.Filename)
-
-				createfile, err := sftpCli.Create(fmt.Sprintf("%s/%s/%s", basePath, dir, fileHeader.Filename))
-				biz.ErrIsNilAppendErr(err, "create file error: %s")
-				defer createfile.Close()
-				io.Copy(createfile, file)
+		folderFiles := make([]FolderFile, len(paths))
+		// 先创建目录，并将其包装为folderFile结构
+		mkdirs := make(map[string]bool, 0)
+		for i, path := range paths {
+			dir := filepath.Dir(path)
+			// 目录已建，则无需重复建
+			if !mkdirs[dir] {
+				biz.ErrIsNilAppendErr(sftpCli.MkdirAll(basePath+"/"+dir), "create dir error: %s")
+				mkdirs[dir] = true
 			}
-		})
+			folderFiles[i] = FolderFile{
+				Dir:        dir,
+				Fileheader: fileheaders[i],
+			}
+		}
+
+		// 分组处理
+		groupNum := 3
+		chunks := collx.ArraySplit(folderFiles, groupNum)
+
+		var wg sync.WaitGroup
+		var mu sync.Mutex             // 保护并发访问
+		var currentUploading []string // 正在上传的文件列表
+		var uploadedSize int64 = 0    // 已上传的总大小
+
+		for _, chunk := range chunks {
+			wg.Go(func() {
+				defer gox.Recover(func(e error) {
+					logx.Errorf("upload folder error: %s", e)
+				})
+
+				for _, file := range chunk {
+					fileHeader := file.Fileheader
+					dir := file.Dir
+					fullPath := dir + "/" + fileHeader.Filename
+					file, _ := fileHeader.Open()
+
+					// 添加到正在上传列表
+					if hasProgressNotify {
+						mu.Lock()
+						currentUploading = append(currentUploading, fullPath)
+						mu.Unlock()
+					}
+
+					createfile, err := sftpCli.Create(fmt.Sprintf("%s/%s/%s", basePath, dir, fileHeader.Filename))
+					if err != nil {
+						logx.Errorf("create file error: %s", err)
+						file.Close()
+
+						// 从正在上传列表移除
+						if hasProgressNotify {
+							mu.Lock()
+							for i, p := range currentUploading {
+								if p == fullPath {
+									currentUploading = append(currentUploading[:i], currentUploading[i+1:]...)
+									break
+								}
+							}
+							mu.Unlock()
+						}
+						return
+					}
+
+					// 使用 progressReader 包装，追踪单个文件上传进度
+					var reader io.Reader = file
+					if hasProgressNotify {
+						reader = &progressReader{
+							reader:    file,
+							total:     fileHeader.Size,
+							uploadId:  uploadId,
+							filename:  fileHeader.Filename,
+							path:      fullPath,
+							ctx:       ctx,
+							startTime: time.Now(),
+							// 回调函数：更新全局进度
+							onProgress: func(readBytes int64) {
+								mu.Lock()
+								currentTotalUploaded := uploadedSize + readBytes
+
+								uploadingFiles := make([]string, len(currentUploading))
+								copy(uploadingFiles, currentUploading)
+								mu.Unlock()
+
+								progressMsgEvent := &msgdto.MsgTmplSendEvent{
+									TmplChannel: msgdto.MsgTmplMachineFolderUploadProgress,
+									Params: collx.M{
+										"uploadId":       uploadId,
+										"folderName":     folderName,
+										"lastFile":       fullPath,
+										"totalFiles":     totalFiles,
+										"uploadedFiles":  uploadedFiles,
+										"totalSize":      totalSize,
+										"uploadedSize":   currentTotalUploaded,
+										"status":         "uploading",
+										"uploadingFiles": uploadingFiles,
+										"timestamp":      time.Now().UnixMilli(),
+									},
+									ReceiverIds: []uint64{contextx.GetLoginAccount(ctx).Id},
+								}
+
+								global.EventBus.Publish(ctx, event.EventTopicMsgTmplSend, progressMsgEvent)
+							},
+						}
+					}
+
+					_, err = io.Copy(createfile, reader)
+
+					if err != nil {
+						logx.Errorf("copy file error: %s", err)
+					}
+
+					// 累加已上传大小
+					mu.Lock()
+					uploadedSize += fileHeader.Size
+					mu.Unlock()
+
+					createfile.Close()
+					file.Close()
+
+					// 从正在上传列表移除，增加已完成计数
+					if hasProgressNotify {
+						mu.Lock()
+						for i, p := range currentUploading {
+							if p == fullPath {
+								currentUploading = append(currentUploading[:i], currentUploading[i+1:]...)
+								break
+							}
+						}
+						uploadedFiles++
+						mu.Unlock()
+					}
+				}
+			})
+		}
+
+		// 等待所有协程执行完成
+		wg.Wait()
 	}
 
-	// 等待所有协程执行完成
-	wg.Wait()
-	if isSuccess {
+	// 发送完成通知
+	if hasProgressNotify {
+		status := "complete"
+		if uploadedFiles < totalFiles {
+			status = "error"
+		}
+
+		completeMsgEvent := &msgdto.MsgTmplSendEvent{
+			TmplChannel: msgdto.MsgTmplMachineFolderUploadProgress,
+			Params: collx.M{
+				"uploadId":      uploadId,
+				"folderName":    folderName,
+				"totalFiles":    totalFiles,
+				"uploadedFiles": uploadedFiles,
+				"totalSize":     totalSize,
+				"uploadedSize":  totalSize, // 完成时已上传大小等于总大小
+				"percent":       100,
+				"status":        status,
+			},
+			ReceiverIds: []uint64{contextx.GetLoginAccount(ctx).Id},
+		}
+		global.EventBus.Publish(ctx, event.EventTopicMsgTmplSend, completeMsgEvent)
+	}
+
+	// 发送成功/失败消息通知
+	if protocol != entity.MachineProtocolRdp {
+		// SSH 协议：使用 mcli 获取机器信息
+		mcli, err := m.machineFileApp.GetMachineCli(rc.MetaCtx, authCertName)
+		if err == nil && mcli != nil {
+			msgEvent := &msgdto.MsgTmplSendEvent{
+				TmplChannel: msgdto.MsgTmplMachineFileUploadSuccess,
+				Params: collx.M{
+					"filename":    folderName,
+					"path":        basePath,
+					"machineName": mcli.Info.Name,
+					"machineCode": mcli.Info.Code,
+				},
+				ReceiverIds: []uint64{rc.GetLoginAccount().Id},
+			}
+			global.EventBus.Publish(ctx, event.EventTopicMsgTmplSend, msgEvent)
+		}
+	} else {
+		// RDP 协议：直接发送通知
+		msgEvent := &msgdto.MsgTmplSendEvent{
+			TmplChannel: msgdto.MsgTmplMachineFileUploadSuccess,
+			Params: collx.M{
+				"filename": folderName,
+				"path":     basePath,
+			},
+			ReceiverIds: []uint64{rc.GetLoginAccount().Id},
+		}
 		global.EventBus.Publish(ctx, event.EventTopicMsgTmplSend, msgEvent)
 	}
 }

@@ -7,9 +7,16 @@
 <script lang="ts" setup>
 import { onMounted, onUnmounted, reactive } from 'vue';
 import { formatTime } from 'element-plus/es/components/countdown/src/utils';
-import { buildProgressProps } from './progress-notify';
 
-const props = defineProps(buildProgressProps());
+const props = defineProps({
+    progress: {
+        type: Object,
+        default: () => ({
+            title: '',
+            executedStatements: 0,
+        }),
+    },
+});
 
 const state = reactive({
     elapsedTime: '00:00:00',

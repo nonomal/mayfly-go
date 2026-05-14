@@ -1,9 +1,6 @@
 <template>
     <div class="machine-file h-full">
         <div class="h-full flex flex-col">
-            <!-- 文件上传进度条 -->
-            <el-progress v-if="uploadProgressShow" class="ml-4 w-[90%]" :text-inside="true" :stroke-width="20" :percentage="progressNum" />
-
             <!-- 文件路径 -->
             <el-row class="mb-2 ml-4">
                 <el-breadcrumb separator-icon="ArrowRight">
@@ -54,7 +51,7 @@
                                                         :before-upload="beforeUpload"
                                                         :on-success="uploadSuccess"
                                                         action=""
-                                                        :http-request="uploadFile"
+                                                        :http-request="handleFileUpload"
                                                         :headers="{ token }"
                                                         :show-file-list="false"
                                                         name="file"
@@ -73,7 +70,7 @@
                                                             ref="folderUploadRef"
                                                             webkitdirectory
                                                             directory
-                                                            @change="uploadFolder"
+                                                            @change="handleFolderUpload"
                                                             style="display: none"
                                                         />
                                                     </div>
@@ -311,7 +308,8 @@
 <script lang="ts" setup>
 import { computed, defineAsyncComponent, onMounted, reactive, ref, toRefs } from 'vue';
 import { ElInput, ElMessage } from 'element-plus';
-import { machineApi } from '../api';
+import { machineApi, uploadFile, uploadFolder } from '../api';
+import { randomUuid } from '@/common/utils/string';
 
 import { joinClientParams } from '@/common/request';
 import config from '@/common/config';
@@ -352,8 +350,6 @@ const state = reactive({
     basePath: '', // 基础路径
     nowPath: '', // 当前路径
     loading: true,
-    progressNum: 0,
-    uploadProgressShow: false,
     fileNameFilter: '',
     files: [] as any,
     selectionFiles: [] as any,
@@ -381,7 +377,7 @@ const state = reactive({
     machineConfig: { uploadMaxFileSize: '1GB' },
 });
 
-const { basePath, nowPath, loading, fileNameFilter, progressNum, uploadProgressShow, fileContent, createFileDialog } = toRefs(state);
+const { basePath, nowPath, loading, fileNameFilter, fileContent, createFileDialog } = toRefs(state);
 
 onMounted(async () => {
     state.basePath = props.path;
@@ -777,90 +773,95 @@ function addFinderToList() {
     folderUploadRef.value.click();
 }
 
-function uploadFolder(e: any) {
-    //e.target.files为文件夹里面的文件
-    // 把文件夹数据放到formData里面，下面的files和paths字段根据接口来定
-    var form = new FormData();
-    form.append('basePath', state.nowPath);
-    form.append('authCertName', props.authCertName as any);
-    form.append('machineId', props.machineId as any);
-    form.append('protocol', props.protocol as any);
-    form.append('fileId', props.fileId as any);
-
-    let totalFileSize = 0;
-    for (let file of e.target.files) {
-        totalFileSize += file.size;
-        form.append('files', file);
-        form.append('paths', file.webkitRelativePath);
+function handleFolderUpload(e: any) {
+    const files = e.target.files;
+    if (!files || files.length === 0) {
+        return;
     }
 
-    try {
-        if (!checkUploadFileSize(totalFileSize)) {
-            return;
-        }
+    // 计算总文件大小
+    let totalFileSize = 0;
+    for (let file of files) {
+        totalFileSize += file.size;
+    }
 
-        // 上传操作
-        machineApi.uploadFile
-            .xhrReq(form, {
-                url: `${config.baseApiUrl}/machines/${props.machineId}/files/${props.fileId}/upload-folder?${joinClientParams()}`,
-                headers: { 'Content-Type': 'multipart/form-data; boundary=----WebKitFormBoundaryF1uyUD0tWdqmJqpl' },
-                onUploadProgress: onUploadProgress,
-                baseURL: '',
-                timeout: 3 * 60 * 60 * 1000,
-            })
-            .then(() => {
+    // 检查文件大小
+    if (!checkUploadFileSize(totalFileSize)) {
+        return;
+    }
+
+    console.log('[MachineFile] Folder upload:', files.length, 'files, total size:', totalFileSize);
+
+    // 生成唯一的 uploadId
+    const uploadId = randomUuid();
+
+    // 使用文件夹上传接口
+    uploadFolder(
+        files,
+        {
+            uploadId,
+            machineId: props.machineId as number,
+            authCertName: props.authCertName as string,
+            protocol: props.protocol as number,
+            fileId: props.fileId as number,
+            path: state.nowPath,
+        },
+        {
+            onSuccess: () => {
                 ElMessage.success(t('machine.uploadSuccess'));
                 setTimeout(() => {
                     refresh();
-                    state.uploadProgressShow = false;
-                }, 3000);
-            })
-            .catch(() => {
-                state.uploadProgressShow = false;
-            });
-    } finally {
-        //无论上传成功与否，都把已选择的文件夹清空，否则选择同一文件夹没有反应
-        const folderEle: any = document.getElementById('folderUploadInput');
-        if (folderEle) {
-            folderEle.value = '';
+                }, 1000);
+            },
+            onError: (error) => {
+                ElMessage.error(error.message);
+            },
         }
+    );
+
+    // 清空已选择的文件夹
+    const folderEle: any = document.getElementById('folderUploadInput');
+    if (folderEle) {
+        folderEle.value = '';
     }
 }
 
-const onUploadProgress = (progressEvent: any) => {
-    state.uploadProgressShow = true;
-    let complete = ((progressEvent.loaded / progressEvent.total) * 100) | 0;
-    state.progressNum = complete;
-};
-
-const uploadFile = (content: any) => {
-    const params = new FormData();
+const handleFileUpload = (content: any) => {
+    const file = content.file;
     const path = state.nowPath;
-    params.append('file', content.file);
-    params.append('path', path);
-    params.append('authCertName', props.authCertName as any);
-    params.append('machineId', props.machineId as any);
-    params.append('protocol', props.protocol as any);
-    params.append('fileId', props.fileId as any);
-    params.append('token', token);
-    machineApi.uploadFile
-        .xhrReq(params, {
-            url: `${config.baseApiUrl}/machines/${props.machineId}/files/${props.fileId}/upload?${joinClientParams()}`,
-            headers: { 'Content-Type': 'multipart/form-data; boundary=----WebKitFormBoundaryF1uyUD0tWdqmJqpl' },
-            onUploadProgress: onUploadProgress,
-            baseURL: '',
-            timeout: 3 * 60 * 60 * 1000,
-        })
-        .then(() => {
-            ElMessage.success(t('machine.uploadSuccess'));
-            setTimeout(() => {
-                refresh();
-                state.uploadProgressShow = false;
-            }, 3000);
-        })
-        .catch(() => {
-            state.uploadProgressShow = false;
-        });
+
+    // 检查文件大小
+    if (!checkUploadFileSize(file.size)) {
+        return;
+    }
+
+    // 生成唯一的 uploadId
+    const uploadId = randomUuid();
+
+    // 上传文件
+    uploadFile(
+        file,
+        {
+            uploadId,
+            machineId: props.machineId as number,
+            authCertName: props.authCertName as string,
+            protocol: props.protocol as number,
+            fileId: props.fileId as number,
+            path: path,
+            filename: file.name,
+        },
+        {
+            onSuccess: () => {
+                ElMessage.success(t('machine.uploadSuccess'));
+                setTimeout(() => {
+                    refresh();
+                }, 1000);
+            },
+            onError: (error: Error) => {
+                ElMessage.error(error.message);
+            },
+        }
+    );
 };
 
 const uploadSuccess = (res: any) => {

@@ -270,6 +270,30 @@ export default {
             previous: 'Previous',
             next: 'Next',
             noMatchMsg: 'No matching item is found',
+            
+            // File transfer related
+            downloadFile: 'Download File',
+            downloadSelectedFile: 'Download Selected Path File',
+            uploadFile: 'Upload File',
+            uploadFileToCurrentDir: 'Upload File to Current Directory',
+            uploadFolder: 'Upload Folder',
+            uploadFolderToCurrentDir: 'Upload Folder to Current Directory',
+            chooseUploadType: 'Choose Upload Type',
+            startDownload: 'Start downloading file: {file}',
+            downloadFailed: 'File download failed: {error}',
+            uploadSuccess: 'File uploaded successfully',
+            uploadFailed: 'File upload failed: {error}',
+            uploading: 'Upload progress: {percent}%',
+            uploadToPath: 'File will be uploaded to: {path}',
+            uploadPathTip: 'Tip: File will be uploaded to home directory (~). To upload to another directory, use cd command first, then use drag-and-drop upload.',
+            
+            // Machine file upload progress notification
+            machineFileUpload: {
+                uploadProgress: 'Machine File Upload Progress',
+                uploaded: 'Uploaded',
+                totalSize: 'Total Size',
+                speed: 'Speed',
+            },
         },
         crontab: {
             crontabInputPlaceholder: 'Click the left button to configure',

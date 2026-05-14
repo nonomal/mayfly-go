@@ -72,7 +72,15 @@
             draggable
             append-to-body
         >
-            <TerminalBody ref="terminal" :cmd="terminalDialog.cmd" :socket-url="getMachineTerminalSocketUrl(props.authCertName)" />
+            <TerminalBody 
+                ref="terminal" 
+                :cmd="terminalDialog.cmd" 
+                :socket-url="getMachineTerminalSocketUrl(props.authCertName)"
+                :machine-id="props.machineId"
+                :auth-cert-name="props.authCertName"
+                :file-id="0"
+                :protocol="1"
+            />
         </el-dialog>
 
         <script-edit

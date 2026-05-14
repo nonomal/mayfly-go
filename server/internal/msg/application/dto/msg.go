@@ -80,6 +80,30 @@ var (
 		Channels: []*entity.MsgChannel{MsgChannelWs},
 	}
 
+	// 机器文件上传进度消息模板
+	MsgTmplMachineFileUploadProgress = &MsgTmplChannel{
+		Tmpl: &entity.MsgTmpl{
+			ExtraData: model.ExtraData{
+				Extra: collx.M{
+					"category": "machineFileUploadProgress",
+				},
+			},
+		},
+		Channels: []*entity.MsgChannel{MsgChannelWs},
+	}
+
+	// 机器文件夹上传进度消息模板
+	MsgTmplMachineFolderUploadProgress = &MsgTmplChannel{
+		Tmpl: &entity.MsgTmpl{
+			ExtraData: model.ExtraData{
+				Extra: collx.M{
+					"category": "machineFolderUploadProgress",
+				},
+			},
+		},
+		Channels: []*entity.MsgChannel{MsgChannelWs},
+	}
+
 	MsgTmplFlowUserTaskTodo = newMsgTmpl(entity.MsgTypeNotify,
 		entity.MsgSubtypeFlowUserTaskTodo,
 		entity.MsgStatusUnRead,

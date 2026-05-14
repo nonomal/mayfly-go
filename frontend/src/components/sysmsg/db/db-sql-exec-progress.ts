@@ -1,16 +1,25 @@
-import { buildProgressProps } from '@/components/progress-notify/progress-notify';
-import syssocket from './syssocket';
-import { h, reactive } from 'vue';
+import ProgressNotify from './DbSqlExecProgress.vue';
 import { ElNotification } from 'element-plus';
-import ProgressNotify from '@/components/progress-notify/progress-notify.vue';
-
-export async function initSysMsgs() {
-    await registerDbSqlExecProgress();
-}
+import { h, reactive } from 'vue';
+import syssocket from '@/common/syssocket';
 
 const sqlExecNotifyMap: Map<string, any> = new Map();
 
-async function registerDbSqlExecProgress() {
+// 构建 props（私有函数，不导出）
+const buildProgressProps = (): any => {
+    return {
+        progress: {
+            title: {
+                type: String,
+            },
+            executedStatements: {
+                type: Number,
+            },
+        },
+    };
+};
+
+export async function registerDbSqlExecProgress() {
     await syssocket.registerMsgHandler('sqlScriptRunProgress', function (message: any) {
         const content = message.params;
         const id = content.id;

@@ -3,26 +3,36 @@
         <div ref="terminalRef" class="h-full w-full" :style="{ background: getTerminalTheme().background }" />
 
         <TerminalSearch ref="terminalSearchRef" :search-addon="state.addon.search" @close="focus" />
+
+        <!-- 右键菜单 -->
+        <Contextmenu ref="contextmenuRef" :dropdown="state.contextmenu.dropdown" :items="state.contextmenu.items" />
     </div>
 </template>
 
 <script lang="ts" setup>
-import '@xterm/xterm/css/xterm.css';
-import { Terminal, ITheme } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
 import { WebLinksAddon } from '@xterm/addon-web-links';
+import { ITheme, Terminal } from '@xterm/xterm';
+import '@xterm/xterm/css/xterm.css';
 
-import { storeToRefs } from 'pinia';
+import config from '@/common/config';
+import { createWebSocket, joinClientParams } from '@/common/request';
+import { getToken } from '@/common/utils/storage';
+import { randomUuid } from '@/common/utils/string';
+import { machineApi, uploadFile, uploadFolder } from '@/views/ops/machine/api';
+import { Contextmenu, ContextmenuItem } from '@/components/contextmenu';
 import { useThemeConfig } from '@/store/themeConfig';
-import { ref, nextTick, reactive, onMounted, onBeforeUnmount, watch } from 'vue';
+import { useDebounceFn, useEventListener } from '@vueuse/core';
+import { ElMessage } from 'element-plus';
+import { storeToRefs } from 'pinia';
+import { nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import TerminalSearch from './TerminalSearch.vue';
 import { TerminalStatus } from './common';
-import { useDebounceFn, useEventListener } from '@vueuse/core';
 import themes from './themes.js';
-import { TrzszFilter } from 'trzsz';
-import { useI18n } from 'vue-i18n';
-import { createWebSocket } from '@/common/request';
+import machine from '@/i18n/en/machine';
+import { downloadFile } from '@/common/utils/file';
 
 const { t } = useI18n();
 
@@ -42,12 +52,29 @@ const props = defineProps({
     socketUrl: {
         type: String,
     },
+    /**
+     * 机器ID（用于文件传输）
+     */
+    machineId: { type: Number, default: 0 },
+    /**
+     * 认证证书名称（用于文件传输）
+     */
+    authCertName: { type: String, default: '' },
+    /**
+     * 文件ID（用于文件传输）
+     */
+    fileId: { type: Number, default: 0 },
+    /**
+     * 协议类型（用于文件传输）
+     */
+    protocol: { type: Number, default: 1 },
 });
 
 const emit = defineEmits(['statusChange']);
 
 const terminalRef: any = ref(null);
 const terminalSearchRef: any = ref(null);
+const contextmenuRef: any = ref(null);
 
 const { themeConfig } = storeToRefs(useThemeConfig());
 
@@ -55,6 +82,11 @@ const { themeConfig } = storeToRefs(useThemeConfig());
 let term: Terminal;
 let socket: WebSocket;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+// 静默模式标志：用于发送不显示的命令（如 pwd）
+let silentMode = false;
+let silentResolve: ((value: string) => void) | null = null;
+let silentBuffer = '';
 
 const state = reactive({
     // 插件
@@ -64,6 +96,15 @@ const state = reactive({
         weblinks: null as any,
     },
     status: -11,
+    // 右键菜单
+    contextmenu: {
+        dropdown: {
+            x: 0,
+            y: 0,
+        },
+        items: [] as ContextmenuItem[],
+        selectedItem: '',
+    },
 });
 
 onMounted(() => {
@@ -171,6 +212,42 @@ const initSocket = async () => {
         console.log('terminal socket close...', e.reason);
         state.status = TerminalStatus.Disconnected;
     };
+
+    // 监听 WebSocket 消息，将服务器输出写入终端
+    socket.onmessage = (e: MessageEvent) => {
+        // 如果是静默模式，捕获输出但不显示
+        if (silentMode && silentResolve) {
+            silentBuffer += e.data;
+
+            // 使用正则表达式匹配绝对路径
+            // 匹配以 / 开头，不包含空格、换行符的连续字符
+            const pathMatch = silentBuffer.match(/(\/[\w\-\./_]*)/);
+
+            if (pathMatch && pathMatch[1]) {
+                const path = pathMatch[1];
+                console.log('[Silent Mode] Extracted path:', path);
+                silentResolve(path);
+                silentMode = false;
+                silentResolve = null;
+                silentBuffer = '';
+                return; // 不写入终端
+            }
+
+            // 如果缓冲区太大，超时处理
+            if (silentBuffer.length > 500) {
+                console.warn('[Silent Mode] Buffer too large, using default path');
+                silentResolve('~');
+                silentMode = false;
+                silentResolve = null;
+                silentBuffer = '';
+            }
+
+            return; // 不写入终端
+        }
+
+        // 正常模式，写入终端显示
+        term.write(e.data);
+    };
 };
 
 const startHeartbeat = () => {
@@ -200,38 +277,24 @@ const loadAddon = () => {
     state.addon.weblinks = weblinks;
     term.loadAddon(weblinks);
 
-    // 注册 trzsz
-    // initialize trzsz filter
-    const trzsz = new TrzszFilter({
-        // write the server output to the terminal
-        writeToTerminal: (data: any) => term.write(typeof data === 'string' ? data : new Uint8Array(data)),
-        // send the user input to the server
-        sendToServer: sendData,
-        // the terminal columns
-        terminalColumns: term.cols,
-        // there is a windows shell
-        isWindowsShell: false,
+    // 注册终端输入事件监听（将用户输入发送到 socket）
+    term.onData((data: string) => sendData(data));
+    term.onBinary((data: string) => sendData(data));
+
+    // 注册终端大小变化事件
+    term.onResize((size: { cols: number; rows: number }) => {
+        sendResize(size.cols, size.rows);
     });
 
-    // let trzsz process the server output
-    socket?.addEventListener('message', (e) => trzsz.processServerOutput(e.data));
-    // let trzsz process the user input
-    term.onData((data) => trzsz.processTerminalInput(data));
-    term.onBinary((data) => trzsz.processBinaryInput(data));
-    term.onResize((size) => {
-        sendResize(size.cols, size.rows);
-        // tell trzsz the terminal columns has been changed
-        trzsz.setTerminalColumns(size.cols);
-    });
     // enable drag files or directories to upload
     terminalRef.value.addEventListener('dragover', (event: Event) => event.preventDefault());
     terminalRef.value.addEventListener('drop', (event: any) => {
         event.preventDefault();
-        trzsz
-            .uploadFiles(event.dataTransfer.items)
-            .then(() => console.log('upload success'))
-            .catch((err: any) => console.log(err));
+        handleFileDrop(event.dataTransfer.items);
     });
+
+    // 添加右键菜单支持文件下载和上传
+    setupContextMenu();
 };
 
 // 写入内容至终端
@@ -302,6 +365,289 @@ const closeSocket = () => {
     socket && socket.readyState === 1 && socket.close();
 };
 
+// 设置右键菜单
+const setupContextMenu = () => {
+    terminalRef.value.addEventListener('contextmenu', async (event: MouseEvent) => {
+        event.preventDefault();
+
+        // 如果没有 machineId，不显示文件传输菜单
+        if (!props.machineId || !props.authCertName) {
+            return; // 直接返回，不显示任何菜单
+        }
+
+        // 获取选中的文本
+        const selectedText = term.getSelection();
+
+        if (selectedText) {
+            // 如果有选中文本，可能是文件路径
+            showFileContextMenu(event, selectedText);
+        } else {
+            // 没有选中文本，显示通用菜单
+            showGeneralContextMenu(event);
+        }
+    });
+};
+
+// 显示文件下载右键菜单
+const showFileContextMenu = (event: MouseEvent, filePath: string) => {
+    state.contextmenu.selectedItem = filePath;
+    state.contextmenu.dropdown = {
+        x: event.clientX,
+        y: event.clientY,
+    };
+
+    state.contextmenu.items = [
+        new ContextmenuItem('download', 'components.terminal.downloadSelectedFile')
+            .withIcon('Download')
+            .withHideFunc(() => false)
+            .withOnClick(() => {
+                downloadSelectedFile(state.contextmenu.selectedItem);
+                contextmenuRef.value?.closeContextmenu();
+            }),
+    ];
+
+    // 打开右键菜单
+    contextmenuRef.value?.openContextmenu({});
+};
+
+// 显示通用右键菜单（上传文件/文件夹）
+const showGeneralContextMenu = (event: MouseEvent) => {
+    state.contextmenu.selectedItem = '';
+    state.contextmenu.dropdown = {
+        x: event.clientX,
+        y: event.clientY,
+    };
+
+    state.contextmenu.items = [
+        new ContextmenuItem('uploadFile', 'components.terminal.uploadFileToCurrentDir')
+            .withIcon('Upload')
+            .withHideFunc(() => false)
+            .withOnClick(() => {
+                triggerFilesUpload();
+                contextmenuRef.value?.closeContextmenu();
+            }),
+        new ContextmenuItem('uploadFolder', 'components.terminal.uploadFolderToCurrentDir')
+            .withIcon('Upload')
+            .withHideFunc(() => false)
+            .withOnClick(() => {
+                triggerFolderUpload();
+                contextmenuRef.value?.closeContextmenu();
+            }),
+    ];
+
+    // 打开右键菜单
+    contextmenuRef.value?.openContextmenu({});
+};
+
+// 下载选中的文件
+const downloadSelectedFile = async (filePath: string) => {
+    if (!props.machineId || !props.authCertName) {
+        ElMessage.error(t('components.terminal.downloadFailed', { error: '缺少机器信息' }));
+        return;
+    }
+
+    try {
+        // 获取当前路径
+        const currentPath = await getCurrentPathOrDefault();
+
+        // 从完整路径中提取文件名
+        const filename = filePath.trim().split('/').pop() || filePath.trim();
+
+        // 拼接完整路径
+        const fullPath = currentPath.endsWith('/') ? `${currentPath}${filename}` : `${currentPath}/${filename}`;
+
+        // 先验证文件是否存在
+        try {
+            await machineApi.fileStat.request({
+                machineId: props.machineId,
+                protocol: props.protocol,
+                fileId: props.fileId,
+                authCertName: props.authCertName,
+                path: fullPath,
+            });
+        } catch (error: any) {
+            return;
+        }
+
+        // 下载文件
+        downloadFile(
+            `${config.baseApiUrl}/machines/${props.machineId}/files/${props.fileId}/download?path=${encodeURIComponent(fullPath)}&machineId=${props.machineId}&authCertName=${props.authCertName}&fileId=${props.fileId}&protocol=${props.protocol}&${joinClientParams()}`
+        );
+
+        ElMessage.success(t('components.terminal.startDownload', { file: fullPath }));
+    } catch (error: any) {
+        ElMessage.error(t('components.terminal.downloadFailed', { error: error.message }));
+    }
+};
+
+// 触发文件上传
+const triggerFilesUpload = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.multiple = true;
+    input.style.display = 'none';
+
+    input.addEventListener('change', () => {
+        if (input.files && input.files.length > 0) {
+            uploadFilesToCurrentPath(input.files);
+        }
+        document.body.removeChild(input);
+    });
+
+    document.body.appendChild(input);
+    input.click();
+};
+
+// 触发文件夹上传
+const triggerFolderUpload = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.multiple = true;
+    (input as any).webkitdirectory = true;
+    (input as any).directory = true;
+    input.style.display = 'none';
+
+    input.addEventListener('change', () => {
+        if (input.files && input.files.length > 0) {
+            uploadFolderToCurrentPath(input.files);
+        }
+        document.body.removeChild(input);
+    });
+
+    document.body.appendChild(input);
+    input.click();
+};
+
+// 上传文件到当前路径
+const uploadFilesToCurrentPath = async (files: FileList) => {
+    try {
+        // 获取当前路径
+        const currentPath = await getCurrentPathOrDefault();
+
+        const file = files[0];
+        const uploadId = randomUuid();
+
+        // 使用统一的 HTTP 上传方法
+        uploadFile(
+            file,
+            {
+                uploadId,
+                machineId: props.machineId as number,
+                authCertName: props.authCertName as string,
+                protocol: props.protocol,
+                fileId: props.fileId as number,
+                path: currentPath,
+                filename: file.name,
+            },
+            {
+                onSuccess: () => {
+                    ElMessage.success(t('components.terminal.uploadSuccess'));
+                },
+                onError: (error) => {
+                    ElMessage.error(t('components.terminal.uploadFailed', { error: error.message }));
+                },
+            }
+        );
+    } catch (error: any) {
+        ElMessage.error(t('components.terminal.uploadFailed', { error: error.message }));
+    }
+};
+
+// 上传文件夹到当前路径
+const uploadFolderToCurrentPath = async (files: FileList) => {
+    try {
+        // 获取当前路径
+        const currentPath = await getCurrentPathOrDefault();
+
+        const uploadId = randomUuid();
+
+        // 使用文件夹上传
+        uploadFolder(
+            files,
+            {
+                uploadId,
+                machineId: props.machineId as number,
+                authCertName: props.authCertName as string,
+                protocol: props.protocol,
+                fileId: props.fileId as number,
+                path: currentPath,
+            },
+            {
+                onSuccess: () => {
+                    ElMessage.success(t('components.terminal.uploadSuccess'));
+                },
+                onError: (error: Error) => {
+                    ElMessage.error(t('components.terminal.uploadFailed', { error: error.message }));
+                },
+            }
+        );
+    } catch (error: any) {
+        ElMessage.error(t('components.terminal.uploadFailed', { error: error.message }));
+    }
+};
+
+// 获取当前路径（静默模式，失败返回默认值）
+const getCurrentPathOrDefault = async (): Promise<string> => {
+    try {
+        return await getCurrentPath();
+    } catch (e) {
+        console.warn('获取当前路径失败，使用默认路径 ~:', e);
+        return '~';
+    }
+};
+
+// 获取当前路径（静默模式，不在终端显示）
+const getCurrentPath = (): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
+            reject('WebSocket 未连接');
+            return;
+        }
+
+        // 设置静默模式
+        silentMode = true;
+        silentResolve = resolve;
+        silentBuffer = '';
+
+        // 发送 pwd 命令（使用 \r 模拟回车）
+        sendData('pwd\r');
+
+        // 设置超时，防止永远等待
+        setTimeout(() => {
+            if (silentMode) {
+                silentMode = false;
+                silentResolve = null;
+                silentBuffer = '';
+                console.warn('[Silent Mode] Timeout getting current path');
+                resolve('~'); // 超时返回默认路径
+            }
+        }, 2000); // 2秒超时
+    });
+};
+
+// 处理文件拖拽上传
+const handleFileDrop = async (items: DataTransferItemList) => {
+    if (!props.machineId || !props.authCertName) {
+        ElMessage.error(t('components.terminal.uploadFailed', { error: '缺少机器信息' }));
+        return;
+    }
+
+    const files: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === 'file') {
+            const file = item.getAsFile();
+            if (file) {
+                files.push(file);
+            }
+        }
+    }
+
+    if (files.length > 0) {
+        await uploadFilesToCurrentPath(files as any);
+    }
+};
+
 const close = () => {
     console.log('in terminal body close');
     closeSocket();
@@ -319,4 +665,6 @@ const getStatus = (): TerminalStatus => {
 
 defineExpose({ init, fitTerminal, focus, clear, close, getStatus, sendResize, write2Term, writeln2Term });
 </script>
-<style lang="scss"></style>
+<style lang="scss" scoped>
+// 终端容器样式
+</style>

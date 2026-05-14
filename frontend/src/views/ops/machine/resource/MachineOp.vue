@@ -39,6 +39,10 @@
                         @status-change="terminalStatusChange(dt.key, $event)"
                         :ref="(el: any) => setTerminalRef(el, dt.key)"
                         :socket-url="dt.socketUrl"
+                        :machine-id="dt.params.id"
+                        :auth-cert-name="dt.authCert"
+                        :file-id="0"
+                        :protocol="dt.params.protocol"
                     />
                     <machine-rdp
                         v-if="dt.params.protocol != MachineProtocolEnum.Ssh.value"

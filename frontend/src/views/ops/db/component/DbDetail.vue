@@ -11,6 +11,8 @@
             <el-descriptions-item :span="1" :label="$t('common.code')">{{ state.detail.code }}</el-descriptions-item>
             <el-descriptions-item :span="1" :label="$t('common.name')">{{ state.detail.name }}</el-descriptions-item>
 
+            <el-descriptions-item :span="3" :label="$t('tag.relateTag')"><TagCodePath :code="state.detail.code" /></el-descriptions-item>
+
             <el-descriptions-item :span="3" label="Host">
                 <SvgIcon :name="getDbDialect(state.detail.type).getInfo().icon" :size="20" />
                 {{ state.detail.host }}:{{ state.detail.port }}
@@ -34,6 +36,7 @@ import { reactive } from 'vue';
 import { dbApi } from '../api';
 import { formatDate } from '@/common/utils/format';
 import { getDbDialect } from '../dialect/index';
+import TagCodePath from '../../component/TagCodePath.vue';
 
 const props = defineProps({
     id: {

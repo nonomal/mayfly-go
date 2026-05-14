@@ -279,6 +279,30 @@ export default {
             previous: '上一个',
             next: '下一个',
             noMatchMsg: '未查询到匹配项',
+            
+            // 文件传输相关
+            downloadFile: '下载文件',
+            downloadSelectedFile: '下载选中路径的文件',
+            uploadFile: '上传文件',
+            uploadFileToCurrentDir: '上传文件到当前目录',
+            uploadFolder: '上传文件夹',
+            uploadFolderToCurrentDir: '上传文件夹到当前目录',
+            chooseUploadType: '请选择上传类型',
+            startDownload: '开始下载文件: {file}',
+            downloadFailed: '文件下载失败: {error}',
+            uploadSuccess: '文件上传成功',
+            uploadFailed: '文件上传失败: {error}',
+            uploading: '上传进度: {percent}%',
+            uploadToPath: '文件将上传到路径: {path}',
+            uploadPathTip: '提示: 文件将上传到用户家目录(~)。如需上传到其他目录，请先在终端中执行 cd 命令切换到目标目录，然后使用拖拽上传功能。',
+            
+            // 机器文件上传进度通知
+            machineFileUpload: {
+                uploadProgress: '机器文件上传进度',
+                uploaded: '已上传',
+                totalSize: '总大小',
+                speed: '速度',
+            },
         },
         crontab: {
             crontabInputPlaceholder: '可点击左边按钮配置',
