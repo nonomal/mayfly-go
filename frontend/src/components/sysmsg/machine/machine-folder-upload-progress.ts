@@ -1,13 +1,163 @@
 import syssocket from '@/common/syssocket';
-import { createOrUpdateNotification, completeNotification, activeNotifications } from '../global-notification-manager';
+import { nextTick, reactive } from 'vue';
+import { activeNotifications, completeNotification, createOrUpdateNotification } from '../global-notification-manager';
 import MachineFolderUploadProgress from './MachineFolderUploadProgress.vue';
-import { reactive, nextTick } from 'vue';
+import { formatByteSize } from '@/common/utils/format';
 
 // 存储上传任务的取消方法
 const folderUploadAborters = new Map<string, { abort: () => void; progress?: any }>();
 
 // 存储待注册的 abort 方法（等待 WebSocket 消息到达）
 const pendingFolderAborters = new Map<string, () => void>();
+
+export interface FolderUploadProgress {
+    authCertName: string;
+    path: string;
+    folderName: string;
+    totalFiles: number; // 文件夹总文件数
+    uploadedFiles: number; // 已上传文件数
+    finishedFiles: number; // 已完成（成功或失败）的文件数
+    totalSize: number; // 文件夹总大小
+    uploadedSize: number; // 已上传大小
+    status: 'uploading' | 'complete' | 'error';
+
+    files: Map<
+        string, // 文件路径
+        {
+            path: string;
+            status: 'waiting' | 'uploading' | 'complete' | 'error'; // 文件状态
+            progress: number;
+            currentSize: number; // 当前已上传大小
+            totalSize: number; // 文件总大小
+            timestamp: number; // 后端推送的时间戳（用于前端计算速度）
+            speed?: string;
+        }
+    >;
+}
+
+const folderStates = reactive<Map<string, FolderUploadProgress>>(new Map());
+
+/**
+ * 更新文件夹上传进度（处理后端推送的单文件进度消息）
+ */
+export function handleUploadFolderProgress(content: any) {
+    const { uploadId, filename, path, uploadedSize, totalSize, status, timestamp } = content;
+
+    if (!uploadId || !filename) {
+        return;
+    }
+
+    const folderState = folderStates.get(uploadId);
+    if (!folderState) {
+        console.warn('[FolderUpload] 找不到 folderState:', uploadId);
+        return;
+    }
+
+    // 构建文件完整路径（后端推送的 path + filename）
+    const backendFilePath = path ? `${path}/${filename}` : filename;
+
+    // 查找匹配的文件
+    let matchedFile = folderState.files.get(backendFilePath);
+
+    if (!matchedFile) {
+        console.warn('[FolderUpload] 未找到匹配的文件:', filename, '路径:', backendFilePath);
+        return;
+    }
+
+    // 更新 Map 中的状态
+    if (status === 'uploading' && totalSize > 0) {
+        // 如果已经是 complete 或 error，不要覆盖
+        if (matchedFile.status === 'complete' || matchedFile.status === 'error') {
+            console.log('[FolderUpload] 忽略旧状态消息:', filename, matchedFile.status);
+            return;
+        }
+
+        matchedFile.status = 'uploading';
+        matchedFile.progress = Math.round((uploadedSize / totalSize) * 100);
+        matchedFile.currentSize = uploadedSize;
+        matchedFile.totalSize = totalSize;
+
+        // 计算传输速度（使用后端推送的 timestamp）
+        if (timestamp) {
+            // 第一次推送时初始化
+            if (!matchedFile.timestamp) {
+                matchedFile.timestamp = timestamp;
+            } else {
+                const timeDiff = (timestamp - matchedFile.timestamp) / 1000; // 转换为秒
+                if (timeDiff > 0) {
+                    const sizeDiff = uploadedSize - matchedFile.currentSize;
+                    if (sizeDiff > 0) {
+                        const speed = sizeDiff / timeDiff;
+                        matchedFile.speed = formatByteSize(speed);
+                    }
+                }
+                matchedFile.timestamp = timestamp;
+            }
+        }
+    } else if (status === 'complete') {
+        matchedFile.status = 'complete';
+        matchedFile.progress = 100;
+        matchedFile.currentSize = matchedFile.totalSize;
+        folderState.uploadedFiles = (folderState.uploadedFiles || 0) + 1;
+        folderState.finishedFiles = (folderState.finishedFiles || 0) + 1;
+        folderState.uploadedSize += uploadedSize;
+        console.log('[FolderUpload] 文件上传完成:', backendFilePath);
+    } else if (status === 'error') {
+        matchedFile.status = 'error';
+        matchedFile.progress = 0;
+        folderState.finishedFiles = (folderState.finishedFiles || 0) + 1;
+        console.log('[FolderUpload] 文件上传失败:', backendFilePath);
+    }
+
+    // 文件夹上传完成条件：所有文件都已完成（成功或失败）
+    if (folderState.finishedFiles === folderState.totalFiles) {
+        completeNotification(uploadId, 1000);
+    }
+}
+
+/**
+ * 创建文件夹上传通知
+ */
+export function createUploadFolderNotification(uploadId: string, data: FolderUploadProgress) {
+    const props = {
+        progress: data,
+        onCancel: () => {
+            const aborter = folderUploadAborters.get(uploadId);
+            if (aborter) {
+                aborter.abort();
+
+                if (aborter.progress) {
+                    nextTick(() => {
+                        aborter.progress.status = 'error';
+                        aborter.progress.folderName = '已取消: ' + (aborter.progress.folderName || '');
+                    });
+
+                    setTimeout(() => {
+                        completeNotification(uploadId, 1000);
+                        folderUploadAborters.delete(uploadId);
+                        folderStates.delete(uploadId);
+                    }, 1500);
+                } else {
+                    folderUploadAborters.delete(uploadId);
+                    folderStates.delete(uploadId);
+                }
+            }
+        },
+    };
+
+    createOrUpdateNotification(uploadId, 'machineFolderUpload', data, MachineFolderUploadProgress, props, {
+        title: 'machine.folderUpload',
+    });
+
+    folderStates.set(uploadId, data);
+
+    // 注册 aborter
+    const pendingAbort = pendingFolderAborters.get(uploadId);
+    if (pendingAbort) {
+        folderUploadAborters.set(uploadId, { abort: pendingAbort, progress: props.progress });
+        pendingFolderAborters.delete(uploadId);
+    }
+}
 
 /**
  * 注册文件夹上传进度消息处理
@@ -21,64 +171,9 @@ export async function registerFolderUploadProgressHandler() {
             return;
         }
 
-        // 上传完成或失败
-        if (content.status === 'complete' || content.status === 'error') {
-            completeNotification(uploadId, 1000);
-            folderUploadAborters.delete(uploadId);
-            return;
-        }
-
-        // 构建组件props
-        const props = {
-            progress: reactive({
-                authCertName: content.authCertName || '',
-                path: content.path || '',
-                folderName: content.folderName || '',
-                totalFiles: content.totalFiles || 0,
-                uploadedFiles: content.uploadedFiles || 0,
-                totalSize: content.totalSize || 0,
-                uploadedSize: content.uploadedSize || 0,
-                uploadingFiles: content.uploadingFiles || [],
-                timestamp: content.timestamp || 0,
-                status: content.status || 'uploading',
-            }),
-            onCancel: () => {
-                const aborter = folderUploadAborters.get(uploadId);
-                if (aborter) {
-                    aborter.abort();
-
-                    // 更新通知状态为取消
-                    if (aborter.progress) {
-                        nextTick(() => {
-                            aborter.progress.status = 'exception';
-                            aborter.progress.folderName = '已取消: ' + (aborter.progress.folderName || '');
-                        });
-
-                        // 延迟后关闭通知
-                        setTimeout(() => {
-                            completeNotification(uploadId, 1000);
-                            folderUploadAborters.delete(uploadId);
-                        }, 1500);
-                    } else {
-                        folderUploadAborters.delete(uploadId);
-                    }
-                }
-            },
-        };
-
-        // 创建或更新上传通知
-        if (content.status === 'uploading') {
-            createOrUpdateNotification(uploadId, 'machineFolderUpload', content, MachineFolderUploadProgress, props, {
-                title: message.title || 'machine.folderUpload',
-            });
-        }
-
-        // 如果有待注册的 abort 方法，现在注册
-        const pendingAbort = pendingFolderAborters.get(uploadId);
-        if (pendingAbort) {
-            folderUploadAborters.set(uploadId, { abort: pendingAbort, progress: props.progress });
-            pendingFolderAborters.delete(uploadId);
-        }
+        // 文件夹上传：处理单文件进度和完成消息
+        // 注意：文件夹上传时，单个文件的 complete/error 不关闭通知，只标记文件状态
+        handleUploadFolderProgress(content);
     });
 }
 
@@ -87,7 +182,7 @@ export async function registerFolderUploadProgressHandler() {
  * @param uploadId 上传ID
  * @param abort 取消方法
  */
-export function registerFolderUploadAborter(uploadId: string, abort: () => void) {
+export function registerUploadFolderAborter(uploadId: string, abort: () => void) {
     // 先检查通知是否已经存在
     const task = activeNotifications.get(uploadId);
     const progress = task?.componentProps?.progress || null;

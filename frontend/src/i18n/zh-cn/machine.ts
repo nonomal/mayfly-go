@@ -149,6 +149,8 @@ export default {
         folderUpload: '文件夹上传',
         uploading: '正在上传',
         concurrentFiles: '{count} 个并发',
+        fileList: '文件列表',
+        waiting: '等待中',
 
         // 上传通知
         uploadNotifications: {

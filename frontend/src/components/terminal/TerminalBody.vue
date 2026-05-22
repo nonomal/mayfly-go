@@ -21,19 +21,17 @@ import { createWebSocket, joinClientParams } from '@/common/request';
 import { downloadFile } from '@/common/utils/file';
 import { copyToClipboard, pasteFromClipboard } from '@/common/utils/string';
 import { Contextmenu, ContextmenuItem } from '@/components/contextmenu';
-import { registerUploadAborter } from '@/components/sysmsg/machine/machine-file-upload-progress';
-import { registerFolderUploadAborter } from '@/components/sysmsg/machine/machine-folder-upload-progress';
+import { Msg } from '@/hooks/useI18n';
 import { useThemeConfig } from '@/store/themeConfig';
 import { machineApi, uploadFile, uploadFolder } from '@/views/ops/machine/api';
 import { useDebounceFn, useEventListener } from '@vueuse/core';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessageBox } from 'element-plus';
 import { storeToRefs } from 'pinia';
 import { nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import TerminalSearch from './TerminalSearch.vue';
 import { TerminalStatus } from './common';
 import themes from './themes.js';
-import { Msg } from '@/hooks/useI18n';
 
 const { t } = useI18n();
 
@@ -527,8 +525,7 @@ const uploadFilesToCurrentPath = async (files: FileList) => {
 
         const file = files[0];
 
-        // 使用统一的 HTTP 上传方法
-        const { uploadId, abort } = uploadFile(
+        uploadFile(
             file,
             {
                 machineId: props.machineId as number,
@@ -547,9 +544,6 @@ const uploadFilesToCurrentPath = async (files: FileList) => {
                 },
             }
         );
-
-        // 注册取消方法
-        registerUploadAborter(uploadId, abort);
     } catch (error: any) {
         Msg.error('components.terminal.uploadFailed', { error: error.message });
     }
@@ -561,8 +555,7 @@ const uploadFolderToCurrentPath = async (files: FileList) => {
         // 获取当前路径
         const currentPath = await getCurrentPathOrDefault();
 
-        // 使用文件夹上传
-        const { uploadId, abort } = uploadFolder(
+        uploadFolder(
             files,
             {
                 machineId: props.machineId as number,
@@ -580,9 +573,6 @@ const uploadFolderToCurrentPath = async (files: FileList) => {
                 },
             }
         );
-
-        // 注册取消方法
-        registerFolderUploadAborter(uploadId, abort);
     } catch (error: any) {
         Msg.error('components.terminal.uploadFailed', { error: error.message });
     }

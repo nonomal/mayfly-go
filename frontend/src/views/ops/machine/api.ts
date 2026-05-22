@@ -1,4 +1,6 @@
 import Api, { UploadOptions } from '@/common/Api';
+import { createUploadFileNotification, registerUploadFileAborter } from '@/components/sysmsg/machine/machine-file-upload-progress';
+import { createUploadFolderNotification, registerUploadFolderAborter } from '@/components/sysmsg/machine/machine-folder-upload-progress';
 
 export const machineApi = {
     // 获取权限列表
@@ -97,6 +99,11 @@ export interface UploadParams {
     path: string;
     /** 文件名 */
     filename: string;
+
+    /** 是否创建进度通知 */
+    createProgressNotify?: boolean;
+    /** 是否是文件夹上传的一部分 */
+    isFolderUpload?: boolean;
 }
 
 /**
@@ -110,16 +117,37 @@ export function uploadFile(file: File, params: UploadParams, options: UploadOpti
     // 业务层生成 uploadId
     const uploadId = params.uploadId || `upload_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('uploadId', uploadId);
-    formData.append('machineId', String(params.machineId));
-    formData.append('authCertName', params.authCertName);
-    formData.append('protocol', String(params.protocol));
-    formData.append('fileId', String(params.fileId));
-    formData.append('path', params.path);
+    // 构建查询参数
+    const queryParams = new URLSearchParams({
+        machineId: String(params.machineId),
+        authCertName: params.authCertName,
+        protocol: String(params.protocol),
+        fileId: String(params.fileId),
+        path: params.path,
+        uploadId: uploadId,
+        filename: file.name,
+    });
 
-    const { abort } = machineApi.uploadFile.upload(formData, options);
+    // 如果是文件夹上传，添加标识参数
+    if (params.isFolderUpload) {
+        queryParams.set('isFolderUpload', 'true');
+    }
+
+    // 直接使用文件流作为 body，不包装为 FormData
+    const { abort } = machineApi.uploadFile.uploadRaw(file, queryParams.toString(), {
+        ...options,
+    });
+
+    if (params.createProgressNotify !== false) {
+        createUploadFileNotification(uploadId, {
+            authCertName: params.authCertName,
+            path: params.path,
+            filename: file.name,
+        });
+
+        // 注册取消方法
+        registerUploadFileAborter(uploadId, abort);
+    }
 
     return { uploadId, abort };
 }
@@ -143,39 +171,124 @@ export interface FolderUploadParams {
 }
 
 /**
- * 上传文件夹(使用 /upload-folder 接口)
- * @param files 文件列表
- * @param params 上传参数
- * @param options 上传选项
- * @returns { uploadId: string; abort: () => void } 返回包含 uploadId 和中止方法的对象
+ * 上传文件夹（逐个文件流式上传，保持目录结构）
  */
 export function uploadFolder(files: FileList | File[], params: FolderUploadParams, options: UploadOptions = {}): { uploadId: string; abort: () => void } {
-    // 业务层生成 uploadId
-    const uploadId = params.uploadId || `upload_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    const uploadId = params.uploadId || `folder_${params.fileId}_${Date.now()}`;
+    const fileArray = Array.from(files);
+    const totalFiles = fileArray.length;
+    const totalSize = fileArray.reduce((sum, file) => sum + file.size, 0);
+    let isAborted = false;
+    const abortControllers: (() => void)[] = []; // 存储所有正在进行的上传的取消方法
 
-    const formData = new FormData();
-    formData.append('uploadId', uploadId);
-    formData.append('basePath', params.path);
-    formData.append('machineId', String(params.machineId));
-    formData.append('authCertName', params.authCertName);
-    formData.append('protocol', String(params.protocol));
-
-    // 添加所有文件
-    const paths: string[] = [];
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+    const filepaths: string[] = [];
+    // 创建上传任务
+    const uploadTasks = fileArray.map((file, index) => {
         const relativePath = (file as any).webkitRelativePath || file.name;
-        formData.append('files', file);
-        paths.push(relativePath);
-    }
+        const fullPath = `${params.path}/${relativePath}`;
+        const dirPath = fullPath.substring(0, fullPath.lastIndexOf('/'));
 
-    // 添加路径数组
-    paths.forEach((path) => {
-        formData.append('paths', path);
+        filepaths.push(fullPath);
+
+        return () =>
+            new Promise<void>((resolve, reject) => {
+                console.log(`[FolderUpload] 开始上传 ${index + 1}/${totalFiles}:`, fullPath);
+
+                const { abort } = uploadFile(
+                    file,
+                    {
+                        uploadId,
+                        machineId: params.machineId,
+                        authCertName: params.authCertName,
+                        protocol: params.protocol,
+                        fileId: params.fileId,
+                        path: dirPath,
+                        filename: file.name,
+                        isFolderUpload: true,
+                        createProgressNotify: false,
+                    },
+                    {
+                        onSuccess: () => {
+                            console.log(`[FolderUpload] 上传成功 ${index + 1}/${totalFiles}:`, fullPath);
+                            resolve();
+                        },
+                        onError: (error) => {
+                            console.log(`[FolderUpload] 上传失败 ${index + 1}/${totalFiles}:`, fullPath, error.message);
+                            if (error.name === 'AbortError' || isAborted) {
+                                reject(error);
+                            } else {
+                                options.onError?.(error);
+                                resolve();
+                            }
+                        },
+                    }
+                );
+
+                // 将当前文件的取消方法添加到列表中
+                abortControllers.push(abort);
+            });
     });
 
-    // 使用 Api.upload 发起请求
-    const { abort } = machineApi.uploadFolder.upload(formData, options);
+    // 初始化进度通知
+    const folderName = fileArray[0]?.webkitRelativePath?.split('/')[0] || 'folder';
+    createUploadFolderNotification(uploadId, {
+        authCertName: params.authCertName,
+        path: params.path,
+        folderName,
+        totalFiles,
+        totalSize,
+        uploadedSize: 0,
+        uploadedFiles: 0,
+        finishedFiles: 0,
+        status: 'uploading',
+        files: new Map(filepaths.map((filepath) => [filepath, { path: filepath, status: 'waiting', progress: 0, currentSize: 0, totalSize: 0, timestamp: 0 }])),
+    });
 
-    return { uploadId, abort };
+    // 并发执行
+    const executeUploads = async () => {
+        const maxConcurrent = 3;
+        const running = new Set<Promise<void>>();
+        let index = 0;
+
+        const launchNext = () => {
+            if (index >= uploadTasks.length || isAborted) return;
+
+            const task = uploadTasks[index++]();
+            running.add(task);
+
+            task.finally(() => {
+                running.delete(task);
+                if (!isAborted) launchNext();
+            });
+        };
+
+        // 启动初始并发
+        for (let i = 0; i < maxConcurrent && i < uploadTasks.length; i++) {
+            launchNext();
+        }
+
+        // 等待所有完成
+        while (running.size > 0) {
+            await Promise.race(running);
+        }
+
+        if (!isAborted) {
+            console.log('[FolderUpload] 全部完成');
+            options.onSuccess?.();
+        }
+    };
+
+    executeUploads();
+
+    const res = {
+        uploadId,
+        abort: () => {
+            isAborted = true;
+            // 取消所有正在进行的上传请求
+            abortControllers.forEach((abort) => abort());
+        },
+    };
+
+    registerUploadFolderAborter(uploadId, res.abort);
+    return res;
 }

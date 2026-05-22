@@ -148,6 +148,8 @@ export default {
         folderUpload: 'Folder Upload',
         uploading: 'Uploading',
         concurrentFiles: '{count} concurrent',
+        fileList: 'File List',
+        waiting: 'Waiting',
 
         // Upload notifications
         uploadNotifications: {

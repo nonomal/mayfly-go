@@ -134,6 +134,57 @@ class Api<T = any, P = any> {
         };
     }
 
+    /**
+     * 原始文件流上传请求（直接使用文件流作为 body，参数通过 URL query 传递）
+     * @param file 文件对象
+     * @param queryParams URL 查询参数字符串
+     * @param options 上传选项（可包含自定义 headers）
+     * @returns { abort: () => void } 返回中止方法
+     */
+    uploadRaw(file: File, queryParams: string, options: UploadOptions & { headers?: Record<string, string> } = {}): { abort: () => void } {
+        const { onSuccess, onError, headers = {} } = options;
+
+        const url = `${config.baseApiUrl}${this.url}?${queryParams}&${joinClientParams()}`;
+
+        // 创建 AbortController 用于取消请求
+        const abortController = new AbortController();
+
+        // 构建请求头
+        const requestHeaders: Record<string, string> = {
+            ...headers,
+        };
+
+        // 发起 fetch 请求，直接使用文件流作为 body
+        fetch(url, {
+            method: 'POST',
+            body: file,
+            signal: abortController.signal,
+            headers: requestHeaders,
+        })
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                return response;
+            })
+            .then(() => {
+                onSuccess?.();
+            })
+            .catch((error) => {
+                if (error.name === 'AbortError') {
+                    return;
+                }
+                onError?.(new Error(`upload failed: ${error.message}`));
+            });
+
+        // 返回中止方法
+        return {
+            abort: () => {
+                abortController.abort();
+            },
+        };
+    }
+
     /**    静态方法     **/
 
     /**

@@ -306,8 +306,6 @@
 </template>
 
 <script lang="ts" setup>
-import { registerUploadAborter } from '@/components/sysmsg/machine/machine-file-upload-progress';
-import { registerFolderUploadAborter } from '@/components/sysmsg/machine/machine-folder-upload-progress';
 import { Msg } from '@/hooks/useI18n';
 import { ElInput } from 'element-plus';
 import { computed, defineAsyncComponent, onMounted, reactive, ref, toRefs } from 'vue';
@@ -792,8 +790,7 @@ function handleFolderUpload(e: any) {
         return;
     }
 
-    // 使用文件夹上传接口
-    const { uploadId, abort } = uploadFolder(
+    uploadFolder(
         files,
         {
             machineId: props.machineId as number,
@@ -815,9 +812,6 @@ function handleFolderUpload(e: any) {
         }
     );
 
-    // 注册取消方法
-    registerFolderUploadAborter(uploadId, abort);
-
     // 清空已选择的文件夹
     const folderEle: any = document.getElementById('folderUploadInput');
     if (folderEle) {
@@ -834,8 +828,7 @@ const handleFileUpload = (content: any) => {
         return;
     }
 
-    // 上传文件
-    const { uploadId, abort } = uploadFile(
+    uploadFile(
         file,
         {
             machineId: props.machineId as number,
@@ -857,9 +850,6 @@ const handleFileUpload = (content: any) => {
             },
         }
     );
-
-    // 注册取消方法
-    registerUploadAborter(uploadId, abort);
 };
 
 const uploadSuccess = (res: any) => {

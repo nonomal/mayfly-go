@@ -166,25 +166,22 @@ func (d *Db) ExecSql(rc *req.Ctx) {
 
 // 执行sql文件
 func (d *Db) ExecSqlFile(rc *req.Ctx) {
-	fileheader, err := rc.FormFile("file")
-	biz.ErrIsNilAppendErr(err, "read form file error: %s")
-
-	file, err := fileheader.Open()
-	biz.ErrIsNilAppendErr(err, "failed to read sql file: %s")
-	defer file.Close()
-	filename := fileheader.Filename
 	dbId := getDbId(rc)
 	clientId := rc.Query("clientId")
-	dbName := rc.PostForm("db")
-	uploadId := rc.PostForm("uploadId")
+	dbName := rc.Query("db")
+	uploadId := rc.Query("uploadId")
+	filename := rc.QueryDefault("filename", "sql_file.sql")
 
 	dbConn, err := d.dbApp.GetDbConn(rc.MetaCtx, dbId, dbName)
 	biz.ErrIsNil(err)
 	biz.ErrIsNilAppendErr(d.tagApp.CanAccess(rc.GetLoginAccount().Id, dbConn.Info.CodePath...), "%s")
 	rc.ReqParam = fmt.Sprintf("filename: %s -> %s", filename, dbConn.Info.GetLogDesc())
 
+	body := rc.GetRequest().Body
+	defer body.Close()
+
 	biz.ErrIsNil(d.dbSqlExecApp.ExecReader(rc.MetaCtx, &dto.SqlReaderExec{
-		Reader:   file,
+		Reader:   body,
 		Filename: filename,
 		DbConn:   dbConn,
 		ClientId: clientId,

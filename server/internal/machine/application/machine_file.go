@@ -18,7 +18,6 @@ import (
 	"mayfly-go/pkg/model"
 	"mayfly-go/pkg/utils/bytex"
 	"mayfly-go/pkg/utils/collx"
-	"mime/multipart"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,9 +65,7 @@ type MachineFile interface {
 	WriteFileContent(ctx context.Context, opParam *dto.MachineFileOp, content []byte) (*mcm.MachineInfo, error)
 
 	// 文件上传
-	UploadFile(ctx context.Context, opParam *dto.MachineFileOp, filename string, reader io.Reader) (*mcm.MachineInfo, error)
-
-	UploadFiles(ctx context.Context, opParam *dto.MachineFileOp, basePath string, fileHeaders []*multipart.FileHeader, paths []string) (*mcm.MachineInfo, error)
+	UploadFile(ctx context.Context, opParam *dto.MachineFileOp, filename string, reader io.Reader) (int64, *mcm.MachineInfo, error)
 
 	// 移除文件
 	RemoveFile(ctx context.Context, opParam *dto.MachineFileOp, path ...string) (*mcm.MachineInfo, error)
@@ -291,7 +288,7 @@ func (m *machineFileAppImpl) WriteFileContent(ctx context.Context, opParam *dto.
 }
 
 // 上传文件
-func (m *machineFileAppImpl) UploadFile(ctx context.Context, opParam *dto.MachineFileOp, filename string, reader io.Reader) (*mcm.MachineInfo, error) {
+func (m *machineFileAppImpl) UploadFile(ctx context.Context, opParam *dto.MachineFileOp, filename string, reader io.Reader) (int64, *mcm.MachineInfo, error) {
 	path := opParam.Path
 	if !strings.HasSuffix(path, "/") {
 		path = path + "/"
@@ -299,89 +296,47 @@ func (m *machineFileAppImpl) UploadFile(ctx context.Context, opParam *dto.Machin
 
 	if opParam.Protocol == entity.MachineProtocolRdp {
 		path = m.GetRdpFilePath(contextx.GetLoginAccount(ctx), path)
+
+		// 确保目录存在
+		dir := path
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return 0, nil, fmt.Errorf("create dir error: %w", err)
+		}
+
 		file, err := os.Create(path + filename)
 		if err != nil {
-			return nil, err
+			return 0, nil, err
 		}
 		defer file.Close()
 
-		// 使用 io.Copy 并检查错误
 		_, err = io.Copy(file, reader)
 		if err != nil {
-			// 检查是否是连接断开导致的错误
-			if ctx.Err() != nil {
-				logx.WarnfContext(ctx, "Upload file cancelled by client: %s", filename)
-				return nil, ctx.Err()
-			}
-			return nil, fmt.Errorf("copy file error: %w", err)
+			return 0, nil, fmt.Errorf("copy file error: %w", err)
 		}
-		return &mcm.MachineInfo{Name: opParam.AuthCertName, Ip: opParam.AuthCertName}, nil
+		return 0, &mcm.MachineInfo{Name: opParam.AuthCertName, Ip: opParam.AuthCertName}, nil
 	}
 
 	mi, sftpCli, err := m.GetMachineSftpCli(ctx, opParam)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
+	}
+
+	// 确保目录存在（文件夹上传时需要自动创建子目录）
+	if err := sftpCli.MkdirAll(path); err != nil {
+		return 0, mi, fmt.Errorf("create dir error: %w", err)
 	}
 
 	createfile, err := sftpCli.Create(path + filename)
 	if err != nil {
-		return mi, err
+		return 0, mi, err
 	}
 	defer createfile.Close()
 
-	// 使用 io.Copy 并检查错误
-	_, err = io.Copy(createfile, reader)
+	written, err := io.Copy(createfile, reader)
 	if err != nil {
-		// 检查是否是连接断开导致的错误
-		if ctx.Err() != nil {
-			logx.WarnfContext(ctx, "Upload file cancelled by client: %s", filename)
-			return mi, ctx.Err()
-		}
-		return mi, fmt.Errorf("copy file error: %w", err)
+		return 0, mi, fmt.Errorf("copy file error: %w", err)
 	}
-	return mi, err
-}
-
-func (m *machineFileAppImpl) UploadFiles(ctx context.Context, opParam *dto.MachineFileOp, basePath string, fileHeaders []*multipart.FileHeader, paths []string) (*mcm.MachineInfo, error) {
-	if opParam.Protocol == entity.MachineProtocolRdp {
-		baseFolder := m.GetRdpFilePath(contextx.GetLoginAccount(ctx), basePath)
-
-		for i, fileHeader := range fileHeaders {
-			file, err := fileHeader.Open()
-			if err != nil {
-				return nil, err
-			}
-			defer file.Close()
-
-			// 创建文件夹
-			rdpBaseDir := basePath
-			if !strings.HasSuffix(rdpBaseDir, "/") {
-				rdpBaseDir = rdpBaseDir + "/"
-			}
-			rdpDir := filepath.Dir(rdpBaseDir + paths[i])
-			m.MkDir(ctx, &dto.MachineFileOp{
-				MachineId: opParam.MachineId,
-				Protocol:  opParam.Protocol,
-				Path:      rdpDir,
-			})
-
-			// 创建文件
-			if !strings.HasSuffix(baseFolder, "/") {
-				baseFolder = baseFolder + "/"
-			}
-			fileAbsPath := baseFolder + paths[i]
-			createFile, err := os.Create(fileAbsPath)
-			if err != nil {
-				return nil, err
-			}
-			defer createFile.Close()
-
-			// 复制文件内容
-			io.Copy(createFile, file)
-		}
-	}
-
-	return &mcm.MachineInfo{Name: opParam.AuthCertName, Ip: opParam.AuthCertName}, nil
+	return written, mi, err
 }
 
 // 删除文件

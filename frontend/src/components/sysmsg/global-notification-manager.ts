@@ -1,7 +1,21 @@
-import { reactive } from 'vue';
+import { reactive, type Component } from 'vue';
+
+// 通知任务接口定义
+export interface NotificationTask {
+    id: string;
+    category: string;
+    content: unknown;
+    component: Component;
+    componentProps: Record<string, any>;
+    options: {
+        title: string;
+        onCancel?: () => void;
+    };
+    timestamp: number;
+}
 
 // 活跃通知任务映射表
-export const activeNotifications = reactive<Map<string, any>>(new Map());
+export const activeNotifications = reactive<Map<string, NotificationTask>>(new Map());
 
 // 悬浮通知状态
 export const globalNotificationState = reactive({
@@ -16,6 +30,13 @@ const updateNotificationState = () => {
 };
 
 /**
+ * 获取通知
+ */
+export function getNotification(id: string) {
+    return activeNotifications.get(id);
+}
+
+/**
  * 创建或更新通知
  * @param id 通知唯一ID
  * @param category 通知类别(如:machineFileUpload, machineFolderUpload, sqlScript等)
@@ -27,11 +48,12 @@ const updateNotificationState = () => {
 export const createOrUpdateNotification = (
     id: string,
     category: string,
-    content: any,
-    component: any,
-    componentProps: any,
+    content: unknown,
+    component: Component,
+    componentProps: Record<string, any>,
     options: {
         title: string;
+        onCancel?: () => void;
     }
 ) => {
     // 添加到活跃任务

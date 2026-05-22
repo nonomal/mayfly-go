@@ -66,7 +66,7 @@ const columns = ref([
     TableColumn.new('name', 'common.name').isSlot('name').setAddWidth(15),
     TableColumn.new('host', 'milvus.host').setMinWidth(200),
     TableColumn.new('authCerts[0].username', 'db.acName').isSlot('authCert').setAddWidth(10),
-    TableColumn.new('createTime', 'common.createTime').setMinWidth(180),
+    TableColumn.new('createTime', 'common.createTime').setMinWidth(180).isTime(),
     TableColumn.new('creator', 'common.creator'),
     TableColumn.new('code', 'Code').setMinWidth(150),
     TableColumn.new('action', 'common.operation').isSlot().setMinWidth(100).fixedRight().alignCenter(),

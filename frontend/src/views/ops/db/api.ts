@@ -1,7 +1,7 @@
 import Api from '@/common/Api';
+import { registerSqlExecAborter, createSqlExecNotification } from '@/components/sysmsg/db/db-sql-exec-progress';
 import { AesEncrypt } from '@/common/crypto';
 import { joinClientParams } from '@/common/request';
-import { registerSqlExecAborter } from '@/components/sysmsg/db/db-sql-exec-progress';
 
 export const dbApi = {
     // 获取权限列表
@@ -103,22 +103,36 @@ export function uploadSqlFile(
     // 生成 uploadId
     const uploadId = `sql_exec_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('db', params.dbName);
-    formData.append('uploadId', uploadId);
+    // 使用 URLSearchParams 构建查询参数
+    const queryParams = new URLSearchParams({
+        db: params.dbName,
+        uploadId: uploadId,
+        filename: file.name,
+    }).toString();
 
     // 创建 Api 实例
     const api = Api.newPost(`/dbs/${params.dbId}/exec-sql-file`);
 
-    // 使用 Api.upload 发起请求
-    const { abort } = api.upload(formData, {
+    // 使用 uploadRaw 直接传递文件流
+    const { abort } = api.uploadRaw(file, queryParams, {
         onSuccess: () => {
             options.onSuccess?.();
         },
         onError: (error) => {
             options.onError?.(error);
         },
+    });
+
+    // 创建SQL执行进度通知
+    createSqlExecNotification(uploadId, {
+        id: uploadId,
+        title: file.name,
+        dbCode: '',
+        dbName: params.dbName,
+        executedStatements: 0,
+        terminated: false,
+        status: 'uploading',
+        clientId: '',
     });
 
     // 注册取消器（在获取到abort方法后）
