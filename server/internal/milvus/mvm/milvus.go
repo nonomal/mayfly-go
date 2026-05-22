@@ -87,9 +87,12 @@ func (mi *MilvusInfo) Conn() (*MilvusConn, error) {
 
 }
 
-func getConnId(id uint64, database string) string {
+func getConnId(id uint64, database string, ac string) string {
 	if id == 0 {
 		return ""
+	}
+	if ac != "" {
+		return fmt.Sprintf("milvus:%d:%s:%s", id, database, ac)
 	}
 	return fmt.Sprintf("milvus:%d:%s", id, database)
 }

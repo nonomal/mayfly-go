@@ -54,6 +54,7 @@ export const TagResourceTypePath = {
     DbInstanceAuthCert: `${TagResourceTypeEnum.DbInstance.value}/${TagResourceTypeEnum.AuthCert.value}`,
     Db: `${TagResourceTypeEnum.DbInstance.value}/${TagResourceTypeEnum.AuthCert.value}/${TagResourceTypeEnum.Db.value}`,
     Es: `${TagResourceTypeEnum.EsInstance.value}/${TagResourceTypeEnum.AuthCert.value}`,
+    MilvusAuthCert: `${TagResourceTypeEnum.Milvus.value}/${TagResourceTypeEnum.AuthCert.value}`,
 };
 
 // 消息子类型

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { milvusApi } from '@/views/ops/milvus/api';
+import { setCurrentAcName } from './authCert';
 
 /**
  * 缓存milvus一些参数
@@ -10,13 +11,14 @@ export const useMilvusStore = defineStore('milvusStore', {
         selectedDb: 'default',
         collections: [],
         selectedCollection: '',
+        authCertName: '',
     }),
     actions: {
         setDbs(dbs: any[]) {
             this.dbs = dbs;
         },
         async refreshDbs(milvusId: number) {
-            const res = await milvusApi.listDatabases.request({ id: milvusId });
+            const res = await milvusApi.listDatabases(milvusId);
             // res 通过dbid排序
             res.sort((a: any, b: any) => {
                 return a.create_time.localeCompare(b.create_time);
@@ -48,6 +50,10 @@ export const useMilvusStore = defineStore('milvusStore', {
             this.selectedCollection = '';
             this.selectedDb = 'default';
             this.dbs = [];
+        },
+        setAuthCertName(name: string) {
+            this.authCertName = name;
+            setCurrentAcName(name);
         },
     },
 });

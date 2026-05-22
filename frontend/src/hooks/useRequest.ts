@@ -77,6 +77,14 @@ export function useApiFetch<T, P = any>(api: Api, params?: P, reqOptions?: Reque
             let paramsValue = unref(currentParam);
 
             let apiUrl = url;
+            // 提取 ac（授权凭证名）参数，始终以查询参数方式传递
+            let acValue: string | undefined;
+            if (paramsValue && paramsValue.ac) {
+                acValue = paramsValue.ac;
+                const { ac: _ac, ...restParams } = paramsValue;
+                paramsValue = restParams;
+            }
+
             // 简单判断该url是否是restful风格
             if (apiUrl.indexOf('{') != -1 && paramsValue) {
                 apiUrl = templateResolve(apiUrl, paramsValue);
@@ -108,7 +116,16 @@ export function useApiFetch<T, P = any>(api: Api, params?: P, reqOptions?: Reque
                         searchParam.append(key, val);
                     }
                 });
-                apiUrl = `${apiUrl}?${searchParam.toString()}`;
+                const qs = searchParam.toString();
+                if (qs) {
+                    apiUrl = `${apiUrl}?${qs}`;
+                }
+            }
+
+            // ac 参数始终以查询参数形式附加到 URL
+            if (acValue) {
+                const separator = apiUrl.includes('?') ? '&' : '?';
+                apiUrl = `${apiUrl}${separator}ac=${encodeURIComponent(acValue)}`;
             }
 
             // 确保 FormData 的 body 不被 reqOptions 覆盖

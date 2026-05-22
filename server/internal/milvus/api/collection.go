@@ -140,7 +140,7 @@ func (c *Collection) DropDatabase(rc *req.Ctx) {
 	database := rc.PathParam("database")
 	err := client.DropDatabase(database)
 	biz.ErrIsNil(err)
-	mvm.CloseConn(client.Id, database)
+	mvm.CloseConn(client.Id, database, rc.Query("ac"))
 }
 
 func (c *Collection) DescribeDatabase(rc *req.Ctx) {

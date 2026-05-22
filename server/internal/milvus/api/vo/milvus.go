@@ -1,20 +1,19 @@
 package vo
 
 import (
+	tagentity "mayfly-go/internal/tag/domain/entity"
 	"mayfly-go/pkg/model"
 )
 
 type Milvus struct {
 	model.Model
+	tagentity.AuthCerts // 授权凭证信息
 
-	Code     string `json:"code"`
-	Name     string `json:"name"`
-	Host     string `json:"host"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Database string `json:"database" gorm:"size:100;comment:数据库名;default:default"` // 数据库名，默认为 default
-
-	SshTunnelMachineId int `json:"sshTunnelMachineId"` // ssh隧道机器id
+	Code               string `json:"code"`
+	Name               string `json:"name"`
+	Host               string `json:"host"`
+	Database           string `json:"database"`
+	SshTunnelMachineId int    `json:"sshTunnelMachineId"`
 }
 
 func (m *Milvus) GetCode() string {

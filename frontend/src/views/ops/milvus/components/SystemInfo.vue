@@ -207,6 +207,9 @@ import { Box, Collection, DocumentCopy, FirstAidKit, InfoFilled, Setting, Warnin
 import { onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { milvusApi } from '../api';
+import { useMilvusStore } from '@/views/ops/milvus/resource/store';
+
+const milvusStore = useMilvusStore();
 
 const { t } = useI18n();
 
@@ -283,7 +286,7 @@ const checkHealth = async () => {
 
 const loadDatabases = async () => {
     try {
-        const res = await milvusApi.listDatabases.request({ id: props.milvusId });
+        const res = await milvusApi.listDatabases(props.milvusId);
         databases.value = res || [];
         stats.value.databaseCount = databases.value.length;
     } catch (error: any) {
@@ -404,12 +407,9 @@ onMounted(() => {
     loadAll();
 });
 
-watch(
-    () => props.milvusId,
-    () => {
-        loadAll();
-    }
-);
+watch([() => props.milvusId, () => milvusStore.authCertName], () => {
+    loadAll();
+});
 </script>
 
 <style scoped>

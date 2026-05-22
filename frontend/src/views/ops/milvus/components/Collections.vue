@@ -301,7 +301,7 @@ onBeforeUnmount(() => {
 });
 
 watch(
-    () => props.milvusId,
+    [() => props.milvusId, () => milvusStore.authCertName],
     async () => {
         list.value = [];
         milvusStore.clear();

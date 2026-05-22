@@ -15,12 +15,20 @@
                 <el-form-item prop="host" :label="$t('milvus.host')" required>
                     <el-input v-model.trim="form.host" :placeholder="$t('milvus.connAddress')" auto-complete="off" type="textarea"></el-input>
                 </el-form-item>
-                <el-form-item prop="username" :label="$t('common.username')">
-                    <el-input v-model.trim="form.username"></el-input>
-                </el-form-item>
-                <el-form-item prop="password" :label="$t('common.password')">
-                    <el-input type="password" show-password v-model.trim="form.password" autocomplete="new-password"> </el-input>
-                </el-form-item>
+
+                <el-divider content-position="left">{{ $t('common.account') }}</el-divider>
+                <div>
+                    <ResourceAuthCertTableEdit
+                        v-model="form.authCerts"
+                        :resource-code="form.code"
+                        :resource-type="TagResourceTypeEnum.Milvus.value"
+                        :test-conn-btn-loading="testConnBtnLoading"
+                        @test-conn="testConn"
+                        :disable-ciphertext-type="[AuthCertCiphertextTypeEnum.PrivateKey.value]"
+                    />
+                </div>
+                <el-divider content-position="left" />
+
                 <el-form-item prop="database" :label="$t('milvus.database')">
                     <el-input v-model.trim="form.database" :placeholder="$t('milvus.dbNamePlaceholder')"></el-input>
                 </el-form-item>
@@ -31,7 +39,6 @@
 
             <template #footer>
                 <div class="dialog-footer">
-                    <el-button @click="onTestConn" :loading="testConnBtnLoading" type="success">{{ $t('ac.testConn') }}</el-button>
                     <el-button @click="onCancel()">{{ $t('common.cancel') }}</el-button>
                     <el-button type="primary" :loading="saveBtnLoading" @click="onConfirm">{{ $t('common.confirm') }}</el-button>
                 </div>
@@ -45,9 +52,12 @@ import { Rules } from '@/common/rule';
 import DrawerHeader from '@/components/drawer-header/DrawerHeader.vue';
 import { Msg } from '@/hooks/useI18n';
 import TagTreeSelect from '@/views/ops/component/TagTreeSelect.vue';
-import { reactive, toRefs, useTemplateRef, watch } from 'vue';
+import { computed, reactive, toRefs, useTemplateRef, watch } from 'vue';
 import SshTunnelSelect from '../component/SshTunnelSelect.vue';
 import { milvusApi } from './api';
+import { TagResourceTypeEnum } from '@/common/commonEnum';
+import { AuthCertCiphertextTypeEnum } from '@/views/ops/tag/enums';
+import ResourceAuthCertTableEdit from '@/views/ops/component/ResourceAuthCertTableEdit.vue';
 
 const props = defineProps({
     milvus: {
@@ -76,53 +86,53 @@ const state = reactive({
         code: '',
         name: null,
         host: '',
-        username: '',
-        password: '',
         database: 'default',
         sshTunnelMachineId: null as any,
         tagCodePaths: [],
+        authCerts: [] as any[],
     },
-    submitForm: {} as any,
 });
 
-const { form, submitForm } = toRefs(state);
+const { form } = toRefs(state);
+
+const submitForm = computed(() => {
+    const reqForm: any = { ...state.form };
+    if (!state.form.sshTunnelMachineId || state.form.sshTunnelMachineId <= 0) {
+        reqForm.sshTunnelMachineId = -1;
+    }
+    return reqForm;
+});
 
 const { isFetching: testConnBtnLoading, execute: testConnExec } = milvusApi.testConn.useApi(submitForm);
-const { isFetching: saveBtnLoading, execute: saveMilvusExec } = milvusApi.save.useApi(submitForm);
+const { isFetching: saveBtnLoading, execute: saveMilvusExec, data: saveMilvusRes } = milvusApi.save.useApi(submitForm);
 
 watch(dialogVisible, () => {
     if (!dialogVisible.value) {
         return;
     }
 
-    const milvus: any = props.milvus;
-    if (milvus) {
-        state.form = { ...milvus };
+    const milvusData: any = props.milvus;
+    if (milvusData) {
+        state.form = { ...milvusData, authCerts: milvusData.authCerts || [] };
     } else {
-        state.form = { database: 'default', sshTunnelMachineId: -1 } as any;
+        state.form = { database: 'default', sshTunnelMachineId: -1, authCerts: [] } as any;
     }
 });
 
-const getReqForm = async () => {
-    const reqForm = { ...state.form };
-    if (!state.form.sshTunnelMachineId || state.form.sshTunnelMachineId <= 0) {
-        reqForm.sshTunnelMachineId = -1;
-    }
-    return reqForm;
-};
-
-const onTestConn = async () => {
+const testConn = async (authCert: any) => {
     await milvusFormRef.value?.validate();
-    state.submitForm = await getReqForm();
-    await testConnExec();
-    Msg.success('milvus.connSuccess');
+    await testConnExec({
+        ...submitForm.value,
+        authCerts: [authCert],
+    });
+    Msg.success(('milvus.connSuccess'));
 };
 
 const onConfirm = async () => {
     await milvusFormRef.value?.validate();
-    state.submitForm = await getReqForm();
-    await saveMilvusExec();
-    Msg.success('milvus.savedSuccess');
+    await saveMilvusExec(submitForm.value);
+    Msg.success(('milvus.savedSuccess'));
+    state.form.id = saveMilvusRes as any;
     emit('val-change', state.form);
     onCancel();
 };

@@ -865,9 +865,9 @@ const handleEditData = () => {
     });
 };
 
-// 监听 milvusId 变化
+// 监听 milvusId 或授权凭证变化
 watch(
-    () => props.milvusId,
+    [() => props.milvusId, () => milvusStore.authCertName],
     async () => {
         // 重置状态
         collectionFields.value = [];

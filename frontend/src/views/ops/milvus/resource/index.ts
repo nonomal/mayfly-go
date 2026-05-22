@@ -13,6 +13,7 @@ const MilvusList = defineAsyncComponent(() => import('../MilvusList.vue'));
 const MilvusOp = defineAsyncComponent(() => import('./MilvusOp.vue'));
 
 const NodeMilvus = defineAsyncComponent(() => import('./NodeMilvus.vue'));
+const NodeMilvusAc = defineAsyncComponent(() => import('./NodeMilvusAc.vue'));
 
 export const MilvusOpComp: ResourceComponentConfig = {
     name: 'tag.milvusOp',
@@ -20,8 +21,24 @@ export const MilvusOpComp: ResourceComponentConfig = {
     icon: MilvusIcon,
 };
 
-const NodeTypeMilvus = new NodeType(TagResourceTypeEnum.Milvus.value).withNodeClickFunc(async (node: TagTreeNode) => {
+// milvus 授权凭证节点类型
+const NodeTypeMilvusAc = new NodeType(TagResourceTypeEnum.Milvus.value * 10 + 1).withNodeClickFunc(async (node: TagTreeNode) => {
+
     (await node.ctx?.addResourceComponent(MilvusOpComp))?.initMilvus(node.params);
+
+    console.log(node.params);
+});
+
+const NodeTypeMilvus = new NodeType(TagResourceTypeEnum.Milvus.value).withLoadNodesFunc((node: TagTreeNode) => {
+    const milvus = node.params;
+    const authCerts = milvus.authCerts || [];
+    return authCerts.map((x: any) =>
+        TagTreeNode.new(node, x.name, x.username, NodeTypeMilvusAc)
+            .withNodeComponent(NodeMilvusAc)
+            .withParams({ ...milvus, selectAuthCert: x })
+            .withIsLeaf(true)
+            .withIcon({ name: 'Ticket', color: '#409eff' })
+    );
 });
 
 // tagpath 节点类型
@@ -34,7 +51,7 @@ const NodeTypeMilvusTag = new NodeType(TagTreeNode.TagPath).withLoadNodesFunc(as
     const milvusInfos = res.list;
     await sleep(100);
     return milvusInfos.map((x: any) => {
-        return TagTreeNode.new(parentNode, `${x.code}`, x.name, NodeTypeMilvus).withIsLeaf(true).withParams(x).withNodeComponent(NodeMilvus);
+        return TagTreeNode.new(parentNode, `${x.code}`, x.name, NodeTypeMilvus).withParams(x).withNodeComponent(NodeMilvus);
     });
 });
 

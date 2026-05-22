@@ -14,8 +14,8 @@ var (
 )
 
 // 从缓存中获取 milvus 连接信息，若缓存中不存在则会使用回调函数获取 milvusInfo 进行连接并缓存
-func GetMilvusConn(ctx context.Context, milvusId uint64, db string, getMilvusInfo func() (*MilvusInfo, error)) (*MilvusConn, error) {
-	connId := getConnId(milvusId, db)
+func GetMilvusConn(ctx context.Context, milvusId uint64, db string, ac string, getMilvusInfo func() (*MilvusInfo, error)) (*MilvusConn, error) {
+	connId := getConnId(milvusId, db, ac)
 	p, err := poolGroup.GetCachePool(connId, func() (*MilvusConn, error) {
 		// 若缓存中不存在，则从回调函数中获取 info
 		mi, err := getMilvusInfo()
@@ -41,9 +41,9 @@ func GetMilvusConn(ctx context.Context, milvusId uint64, db string, getMilvusInf
 }
 
 // 关闭连接，并移除缓存连接
-func CloseConn(id uint64, database string) {
+func CloseConn(id uint64, database string, ac string) {
 	go func() {
-		err := poolGroup.Close(getConnId(id, database))
+		err := poolGroup.Close(getConnId(id, database, ac))
 		if err != nil {
 			logx.Errorf("关闭milvus连接失败：%v", err)
 			return

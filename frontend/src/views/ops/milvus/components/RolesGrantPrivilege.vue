@@ -1060,7 +1060,7 @@ const loadPrivilegeGroups = async () => {
 // 加载数据库列表
 const loadDatabases = async () => {
     try {
-        const res = await milvusApi.listDatabases.request({ id: props.milvusId });
+        const res = await milvusApi.listDatabases(props.milvusId);
         databases.value = res || [];
     } catch (error: any) {
         databases.value = [];

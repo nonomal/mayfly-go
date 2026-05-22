@@ -112,7 +112,7 @@ onMounted(() => {
 });
 
 watch(
-    () => props.milvusId,
+    [() => props.milvusId, () => milvusStore.authCertName],
     () => {
         list.value = [];
         loadList();

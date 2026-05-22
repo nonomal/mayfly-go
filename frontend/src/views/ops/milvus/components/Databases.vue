@@ -130,7 +130,7 @@ const submitCreate = async () => {
             if (configForm.value.timezone) {
                 properties.timezone = configForm.value.timezone;
             }
-            await milvusApi.createDatabase(props.milvusId, { properties, name: createForm.value.name });
+            await milvusApi.createDatabase(props.milvusId, { ...createForm.value, properties });
             Msg.success('milvus.createdSuccess');
             createDialog.value.visible = false;
             await loadList();
@@ -184,7 +184,7 @@ const handleUse = async (row: any) => {
 };
 
 watch(
-    () => props.milvusId,
+    [() => props.milvusId, () => milvusStore.authCertName],
     () => {
         milvusStore.setDbs([]);
         loadList();

@@ -19,8 +19,9 @@ import (
 
 // Milvus Milvus API
 type Milvus struct {
-	milvusApp  application.Milvus `inject:"T"`
-	tagTreeApp tagapp.TagTree     `inject:"T"`
+	milvusApp           application.Milvus      `inject:"T"`
+	tagTreeApp          tagapp.TagTree          `inject:"T"`
+	resourceAuthCertApp tagapp.ResourceAuthCert `inject:"T"`
 }
 
 // ReqConfs 注册路由
@@ -48,37 +49,60 @@ func (m *Milvus) Milvuses(rc *req.Ctx) {
 
 	// 不存在可访问标签 id，即没有可操作数据
 	tags := m.tagTreeApp.GetAccountTags(rc.GetLoginAccount().Id, &tagentity.TagTreeQuery{
-		TypePaths:     collx.AsArray(tagentity.NewTypePaths(tagentity.TagTypeMilvus)),
-		CodePathLikes: []string{queryCond.TagPath},
+		TypePaths:     collx.AsArray(tagentity.NewTypePaths(tagentity.TagTypeMilvus, tagentity.TagTypeAuthCert)),
+		CodePathLikes: collx.AsArray(queryCond.TagPath),
 	})
 	if len(tags) == 0 {
 		rc.ResData = model.NewEmptyPageResult[any]()
 		return
 	}
-	queryCond.Codes = tags.GetCodes()
+
+	tagCodePaths := tags.GetCodePaths()
+	milvusCodes := tagentity.GetCodesByCodePaths(tagentity.TagTypeMilvus, tagCodePaths...)
+	queryCond.Codes = milvusCodes
 
 	res, err := m.milvusApp.GetPageList(queryCond)
 	biz.ErrIsNil(err)
 	resVo := model.PageResultConv[*entity.Milvus, *vo.Milvus](res)
+
+	// 填充授权凭证信息
+	acNames := tagentity.GetCodesByCodePaths(tagentity.TagTypeAuthCert, tagCodePaths...)
+	m.resourceAuthCertApp.FillAuthCertByAcNames(acNames, collx.ArrayMap(resVo.List, func(vos *vo.Milvus) tagentity.IAuthCert {
+		return vos
+	})...)
 
 	rc.ResData = resVo
 }
 
 // TestConn 测试连接
 func (m *Milvus) TestConn(rc *req.Ctx) {
-	_, milvus := req.BindJsonAndCopyTo[form.Milvus, entity.Milvus](rc)
-	biz.ErrIsNilAppendErr(m.milvusApp.TestConn(milvus), "connection error: %s")
+	f := req.BindJson[form.Milvus](rc)
+	instance := &entity.Milvus{
+		Host:               f.Host,
+		SshTunnelMachineId: f.SshTunnelMachineId,
+	}
+	biz.ErrIsNilAppendErr(m.milvusApp.TestConn(rc.MetaCtx, instance, f.AuthCerts[0]), "connection error: %s")
 }
 
 // Save 保存
 func (m *Milvus) Save(rc *req.Ctx) {
-	f, milvus := req.BindJsonAndCopyTo[form.Milvus, entity.Milvus](rc)
+	f := req.BindJson[form.Milvus](rc)
+	instance := &entity.Milvus{
+		Code:               f.Code,
+		Name:               f.Name,
+		Host:               f.Host,
+		Database:           f.Database,
+		SshTunnelMachineId: f.SshTunnelMachineId,
+	}
+	instance.Id = f.Id
 
-	// 密码脱敏记录日志
-	f.Password = "***"
-	rc.ReqParam = f
+	rc.ReqParam = form.Milvus{
+		Name:     f.Name,
+		Host:     f.Host,
+		Database: f.Database,
+	}
 
-	biz.ErrIsNil(m.milvusApp.SaveMilvus(rc.MetaCtx, milvus, f.TagCodePaths...))
+	biz.ErrIsNil(m.milvusApp.SaveMilvus(rc.MetaCtx, instance, f.AuthCerts, f.TagCodePaths...))
 }
 
 // DeleteById 删除

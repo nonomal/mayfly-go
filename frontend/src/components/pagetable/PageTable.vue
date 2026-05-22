@@ -196,6 +196,7 @@ export interface PageTableProps {
     border?: boolean; // 是否带有纵向边框 ==> 非必传（默认为false）
     toolButton?: ('setting' | 'search')[] | boolean; // 是否显示表格功能按钮 ==> 非必传（默认为true）
     searchCol?: any; // 表格搜索项 每列占比配置 ==> 非必传 { xs: 1, sm: 2, md: 2, lg: 3, xl: 4 } | number 如 3
+    selectionData?: any[]; // 选中数据，声明为 prop 防止透传到 el-table 引发 Array.join 异常
 }
 
 // 接受父组件参数，配置默认值
@@ -209,6 +210,7 @@ const props = withDefaults(defineProps<PageTableProps>(), {
     showSearch: false,
     searchItems: () => [],
     searchCol: () => ({ xs: 1, sm: 3, md: 3, lg: 4, xl: 5 }),
+    selectionData: () => [],
 });
 
 // 查询表单参数 ==> 非必传（默认为{pageNum:1, pageSize: 10}）

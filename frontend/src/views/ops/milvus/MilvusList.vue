@@ -3,6 +3,7 @@
         <page-table
             ref="pageTableRef"
             :page-api="milvusApi.list"
+            :data-handler-fn="handleData"
             :searchItems="searchItems"
             v-model:query-form="query"
             :show-selection="true"
@@ -22,6 +23,10 @@
                 {{ data.name }}
             </template>
 
+            <template #authCert="{ data }">
+                <ResourceAuthCert v-model:select-auth-cert="data.selectAuthCert" :auth-certs="data.authCerts" />
+            </template>
+
             <template #action="{ data }">
                 <el-button v-auth="perms.inst_save" @click="editMilvus(data)" link type="primary">{{ $t('common.edit') }}</el-button>
             </template>
@@ -39,9 +44,10 @@ import { SearchItem } from '@/components/pagetable/SearchForm';
 import { Msg, useI18nCreateTitle, useI18nDeleteConfirm, useI18nEditTitle } from '@/hooks/useI18n';
 import { getTagPathSearchItem } from '@/views/ops/component/tag';
 import { defineAsyncComponent, ref, Ref } from 'vue';
-import TagCodePath from '../component/TagCodePath.vue';
 import { milvusApi, perms } from './api';
 import type { IMilvus } from './types';
+import TagCodePath from '../component/TagCodePath.vue';
+import ResourceAuthCert from '../component/ResourceAuthCert.vue';
 
 const MilvusEdit = defineAsyncComponent(() => import('./MilvusEdit.vue'));
 
@@ -59,8 +65,7 @@ const searchItems = [SearchItem.input('keyword', 'common.keyword').withPlacehold
 const columns = ref([
     TableColumn.new('name', 'common.name').isSlot('name').setAddWidth(15),
     TableColumn.new('host', 'milvus.host').setMinWidth(200),
-    TableColumn.new('username', 'mq.kafka.username'),
-    TableColumn.new('password', 'common.password'),
+    TableColumn.new('authCerts[0].username', 'db.acName').isSlot('authCert').setAddWidth(10),
     TableColumn.new('createTime', 'common.createTime').setMinWidth(180),
     TableColumn.new('creator', 'common.creator'),
     TableColumn.new('code', 'Code').setMinWidth(150),
@@ -81,6 +86,15 @@ const editMilvus = (data?: IMilvus) => {
     };
 };
 
+const handleData = (res: any) => {
+    const dataList = res.list;
+    // 赋值授权凭证
+    for (let x of dataList) {
+        x.selectAuthCert = x.authCerts?.[0];
+    }
+    return res;
+};
+
 const deleteMilvus = async () => {
     const records = selectionData.value || [];
     if (records.length === 0) {
@@ -90,7 +104,7 @@ const deleteMilvus = async () => {
     const ids = records.map((r: any) => r.id).join(',');
 
     await useI18nDeleteConfirm('Milvus: ' + ids);
-    milvusApi.delete.request(ids).then(() => {
+    milvusApi.delete.request({ ids }).then(() => {
         Msg.deleteSuccess();
         search();
     });

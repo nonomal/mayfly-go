@@ -116,4 +116,5 @@ declare interface MilvusState {
     selectedDb: string,
     selectedCollection: string
     collections: any[],
+    authCertName: string,
 }

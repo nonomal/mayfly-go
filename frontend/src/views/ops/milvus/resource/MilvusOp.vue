@@ -29,11 +29,6 @@
             <Roles :milvus-id="milvusId" v-if="activeTab === 'roles'" />
         </el-tab-pane>
 
-        <!-- 权限组管理 -->
-        <!-- <el-tab-pane :label="$t('milvus.privilegeGroupManagement')" name="privilegeGroups">
-            <PrivilegeGroups v-if="activeTab === 'privilegeGroups'" :milvus-id="milvusId" />
-        </el-tab-pane> -->
-
         <!-- 资源组 -->
         <el-tab-pane :label="$t('milvus.resourceGroup')" name="resourceGroups">
             <ResourceGroups :milvus-id="milvusId" v-if="activeTab === 'resourceGroups'" />
@@ -58,13 +53,17 @@ import PrivilegeGroups from '../components/PrivilegeGroups.vue';
 import ResourceGroups from '../components/ResourceGroups.vue';
 import SystemInfo from '../components/SystemInfo.vue';
 import { MilvusOpComp } from '@/views/ops/milvus/resource/index';
+import { useMilvusStore } from '@/views/ops/milvus/resource/store';
 
+const milvusStore = useMilvusStore();
 const milvusId = ref<number>(0);
 
 const emits = defineEmits(['init']);
 const initMilvus = (params: any) => {
     activeTab.value = 'databases';
     milvusId.value = params.id;
+    // 设置当前选中的授权凭证名（无论是否选择凭证，都重置，确保切换实例后不会残留旧凭证）
+    milvusStore.setAuthCertName(params.selectAuthCert?.name || '');
 };
 
 const activeTab = ref('databases');
